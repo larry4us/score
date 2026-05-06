@@ -35,7 +35,7 @@ struct AuthenticationView: View {
             // Métodos de autenticação
             VStack(spacing: 12) {
                 Button {
-                    coordinator.navigate(to: .emailSignIn(authService: authService))
+                    coordinator.navigate(to: .auth(.emailSignIn))
                 } label: {
                     Label("Continuar com E-mail", systemImage: "envelope.fill")
                         .frame(maxWidth: .infinity)

@@ -5,7 +5,7 @@
 
 import Foundation
 
-struct ScoreEntry: Identifiable, Codable {
+struct ScoreEntry: Identifiable, Codable, Hashable {
     let id: String
     var participantId: String
     var points: Int

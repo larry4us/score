@@ -1,22 +1,60 @@
 //
-//  AuthCoordinator.swift
+//  Coordinator.swift
 //  DominoScore
 //
 
 import SwiftUI
 
+// MARK: - Route Definitions
+
 /// Rotas do fluxo de autenticação.
-/// Cada caso pode carregar valores associados necessários pela tela de destino.
-enum Pages: Hashable {
-    case emailSignIn(authService: AuthService)
+enum AuthRoute: Hashable {
+    case emailSignIn
 }
 
-/// Coordinator que gerencia a navegação
+/// Rotas do fluxo de score/sessão.
+enum ScoreRoute: Hashable {
+    case home
+    case lobby
+    case scoreboard(session: Session)
+    case history(entries: [ScoreEntry], participants: [Participant])
+}
+
+/// Rota raiz que agrupa os dois domínios de navegação.
+enum AppRoute: Hashable {
+    case auth(AuthRoute)
+    case score(ScoreRoute)
+}
+
+// MARK: - Coordinator
+
+/// Coordinator que gerencia a navegação.
 @Observable
 final class Coordinator {
+    private(set) var authService: AuthService?
+
     var path = NavigationPath()
 
-    func navigate(to route: Pages) {
+    /// Inicializador padrão — usado pelo app com Firebase.
+    init(authService: AuthService) {
+        self.authService = authService
+    }
+
+    /// Inicializador para testes — sem dependência do Firebase.
+    init(authenticated: Bool = false) {
+        self.authService = nil
+        self._isAuthenticated = authenticated
+    }
+
+    /// Estado de autenticação. Quando `authService` existe, delega para ele.
+    var isAuthenticated: Bool {
+        authService?.isAuthenticated ?? _isAuthenticated
+    }
+    private var _isAuthenticated = false
+
+    // MARK: - Navigation
+
+    func navigate(to route: AppRoute) {
         path.append(route)
     }
 
@@ -29,28 +67,64 @@ final class Coordinator {
         path = NavigationPath()
     }
 
-    // MARK: - View Builder
+    /// Decide a rota raiz com base no estado de autenticação.
+    func rootRoute() -> AppRoute {
+        isAuthenticated ? .score(.home) : .auth(.emailSignIn)
+    }
+
+    // MARK: - View Builders
 
     @ViewBuilder
-    func build(_ route: Pages) -> some View {
+    func build(_ route: AppRoute) -> some View {
         switch route {
-        case .emailSignIn(let authService):
-            EmailSignInView(authService: authService)
+        case .auth(let authRoute):
+            buildAuth(authRoute)
+        case .score(let scoreRoute):
+            buildScore(scoreRoute)
+        }
+    }
+
+    @ViewBuilder
+    private func buildAuth(_ route: AuthRoute) -> some View {
+        switch route {
+        case .emailSignIn:
+            if let authService {
+                EmailSignInView(authService: authService)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func buildScore(_ route: ScoreRoute) -> some View {
+        switch route {
+        case .home:
+            HomeView()
+        case .lobby:
+            LobbyView(session: Session.mock)
+        case .scoreboard(let session):
+            ScoreboardView(session: session)
+        case .history(let entries, let participants):
+            HistoryView(entries: entries, participants: participants)
         }
     }
 }
+
 // MARK: - CoordinatorView
 
 /// View raiz que encapsula o NavigationStack e delega a resolução de rotas ao Coordinator.
 struct CoordinatorView: View {
-    @State private var coordinator = Coordinator()
+    @State private var coordinator = Coordinator(authService: AuthService())
 
     var body: some View {
         NavigationStack(path: $coordinator.path) {
-            AuthenticationView(authService: AuthService(), coordinator: coordinator)
-                .navigationDestination(for: Pages.self) { route in
+            coordinator.build(coordinator.rootRoute())
+                .navigationDestination(for: AppRoute.self) { route in
                     coordinator.build(route)
                 }
+                .environment(coordinator)
+        }
+        .onAppear {
+            coordinator.authService?.restoreSession()
         }
     }
 }

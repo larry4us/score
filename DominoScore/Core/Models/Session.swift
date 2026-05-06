@@ -5,7 +5,7 @@
 
 import Foundation
 
-struct Session: Identifiable, Codable {
+struct Session: Identifiable, Codable, Hashable {
     let id: String
     var code: String
     var hostId: String
@@ -31,4 +31,14 @@ struct Session: Identifiable, Codable {
         self.createdAt = createdAt
         self.isActive = isActive
     }
+    
+    static let mock: Session = .init(
+        id: "123",
+        code: "ABC123",
+        hostId: "456",
+        participants: [
+            .init(id: "456", name: "John Doe"),
+            .init(id: "789", name: "Jane Smith")
+        ],
+        scoreEntries: [])
 }
