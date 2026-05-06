@@ -5,47 +5,90 @@
 
 import Foundation
 
-/// Protocol defining session data operations.
-protocol SessionRepository {
-    func create(_ session: Session) async throws
-    func fetch(byCode code: String) async throws -> Session?
-    func fetch(byId id: String) async throws -> Session?
-    func update(_ session: Session) async throws
-    func addScoreEntry(_ entry: ScoreEntry, toSession sessionId: String) async throws
-    func listen(sessionId: String, onChange: @escaping (Session) -> Void)
-}
-
-/// Firestore-backed implementation of SessionRepository.
-final class FirestoreSessionRepository: SessionRepository {
+/// Repositório que gerencia operações de sessão via Firestore.
+/// Usa `@Observable` para publicar a sessão em tempo real.
+@Observable
+final class SessionRepository {
 
     private let client: FirestoreClient
+    private let codeGenerator: CodeGenerator
 
-    init(client: FirestoreClient = FirestoreClient()) {
+    /// Sessão atual sendo observada em tempo real.
+    private(set) var currentSession: Session?
+
+    /// Mensagem de erro da última operação.
+    private(set) var errorMessage: String?
+
+    init(
+        client: FirestoreClient = FirestoreClient(),
+        codeGenerator: CodeGenerator = CodeGenerator()
+    ) {
         self.client = client
+        self.codeGenerator = codeGenerator
     }
 
-    func create(_ session: Session) async throws {
-        try await client.createSession(session)
+    // MARK: - Create
+
+    /// Cria uma nova sessão com código aleatório de 5 caracteres e status `waiting`.
+    func createSession(hostUid: String) async {
+        let session = Session(
+            code: codeGenerator.generate(),
+            hostUid: hostUid,
+            status: .waiting
+        )
+
+        do {
+            let docId = try await client.createSession(session)
+            listenToSession(sessionId: docId)
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
-    func fetch(byCode code: String) async throws -> Session? {
-        try await client.fetchSession(byCode: code)
+    // MARK: - Find
+
+    /// Busca uma sessão pelo campo `code` e começa a escutar mudanças.
+    func findSession(byCode code: String) async {
+        do {
+            guard let session = try await client.fetchSession(byCode: code),
+                  let id = session.id else {
+                errorMessage = "Sessão não encontrada."
+                return
+            }
+            listenToSession(sessionId: id)
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
-    func fetch(byId id: String) async throws -> Session? {
-        // TODO: Implement fetch by ID
-        return nil
+    // MARK: - Listen
+
+    /// Abre um snapshot listener em tempo real que publica a sessão em `currentSession`.
+    func listenToSession(sessionId: String) {
+        client.listenToSession(id: sessionId) { [weak self] session in
+            self?.currentSession = session
+        }
     }
 
-    func update(_ session: Session) async throws {
-        try await client.updateSession(session)
+    // MARK: - Update
+
+    /// Atualiza o campo `status` da sessão.
+    func updateStatus(_ status: Session.Status, sessionId: String) async {
+        do {
+            try await client.updateStatus(status, sessionId: sessionId)
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
-    func addScoreEntry(_ entry: ScoreEntry, toSession sessionId: String) async throws {
-        try await client.addScoreEntry(entry, toSession: sessionId)
-    }
+    // MARK: - Cleanup
 
-    func listen(sessionId: String, onChange: @escaping (Session) -> Void) {
-        client.listenToSession(id: sessionId, onChange: onChange)
+    /// Remove o listener ativo.
+    func stopListening() {
+        client.removeListener()
+        currentSession = nil
     }
 }

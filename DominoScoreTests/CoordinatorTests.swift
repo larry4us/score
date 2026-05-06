@@ -10,7 +10,7 @@ import SwiftUI
 // MARK: - Helpers
 
 private func makeSampleSession() -> Session {
-    Session(code: "ABC123", hostId: "host-1")
+    Session(code: "AB3K7", hostUid: "host-1", status: .waiting)
 }
 
 // MARK: - isAuthenticated
@@ -39,9 +39,9 @@ struct CoordinatorRootRouteTests {
         #expect(coordinator.rootRoute() == .auth(.emailSignIn))
     }
 
-    @Test func rootRoute_whenAuthenticated_returnsScoreLobby() {
+    @Test func rootRoute_whenAuthenticated_returnsScoreHome() {
         let coordinator = Coordinator(authenticated: true)
-        #expect(coordinator.rootRoute() == .score(.lobby))
+        #expect(coordinator.rootRoute() == .score(.home))
     }
 }
 
@@ -62,7 +62,7 @@ struct CoordinatorNavigateTests {
         let coordinator = Coordinator(authenticated: true)
         let session = makeSampleSession()
 
-        coordinator.navigate(to: .score(.lobby))
+        coordinator.navigate(to: .score(.lobby(session: session)))
         coordinator.navigate(to: .score(.scoreboard(session: session)))
 
         #expect(coordinator.path.count == 2)
@@ -95,7 +95,7 @@ struct CoordinatorPopTests {
         let coordinator = Coordinator(authenticated: true)
         let session = makeSampleSession()
 
-        coordinator.navigate(to: .score(.lobby))
+        coordinator.navigate(to: .score(.lobby(session: session)))
         coordinator.navigate(to: .score(.scoreboard(session: session)))
         #expect(coordinator.path.count == 2)
 

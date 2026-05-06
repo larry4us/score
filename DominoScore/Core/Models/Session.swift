@@ -4,41 +4,32 @@
 //
 
 import Foundation
+import FirebaseFirestore
 
 struct Session: Identifiable, Codable, Hashable {
-    let id: String
+    @DocumentID var id: String?
     var code: String
-    var hostId: String
-    var participants: [Participant]
-    var scoreEntries: [ScoreEntry]
-    var createdAt: Date
-    var isActive: Bool
+    var hostUid: String
+    var status: Status
 
-    init(
-        id: String = UUID().uuidString,
-        code: String,
-        hostId: String,
-        participants: [Participant] = [],
-        scoreEntries: [ScoreEntry] = [],
-        createdAt: Date = Date(),
-        isActive: Bool = true
-    ) {
-        self.id = id
-        self.code = code
-        self.hostId = hostId
-        self.participants = participants
-        self.scoreEntries = scoreEntries
-        self.createdAt = createdAt
-        self.isActive = isActive
+    enum Status: String, Codable, Hashable {
+        case waiting
+        case active
+        case finished
     }
-    
-    static let mock: Session = .init(
-        id: "123",
-        code: "ABC123",
-        hostId: "456",
-        participants: [
-            .init(id: "456", name: "John Doe"),
-            .init(id: "789", name: "Jane Smith")
-        ],
-        scoreEntries: [])
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case code
+        case hostUid
+        case status
+    }
+
+    // MARK: - Mock
+
+    static let mock = Session(
+        code: "AB3K7",
+        hostUid: "mock-uid",
+        status: .waiting
+    )
 }

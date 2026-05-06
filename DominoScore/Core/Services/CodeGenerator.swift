@@ -9,7 +9,7 @@ import Foundation
 struct CodeGenerator {
 
     private static let characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-    private static let codeLength = 6
+    private static let codeLength = 5
 
     /// Generates a random alphanumeric code (e.g. "A3K7P2").
     func generate() -> String {
