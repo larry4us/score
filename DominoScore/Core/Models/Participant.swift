@@ -10,16 +10,37 @@ struct Participant: Identifiable, Codable, Hashable {
     var name: String
     var totalScore: Int
     var joinedAt: Date
+    var teamColorIndex: Int
+    var ownerUid: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, totalScore, joinedAt, teamColorIndex, ownerUid
+    }
 
     init(
         id: String = UUID().uuidString,
         name: String,
         totalScore: Int = 0,
-        joinedAt: Date = Date()
+        joinedAt: Date = .now,
+        teamColorIndex: Int = 0,
+        ownerUid: String = ""
     ) {
         self.id = id
         self.name = name
         self.totalScore = totalScore
         self.joinedAt = joinedAt
+        self.teamColorIndex = teamColorIndex
+        self.ownerUid = ownerUid
+    }
+
+    /// Backward-compatible decoding — old documents without teamColorIndex/ownerUid still decode.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        totalScore = try container.decode(Int.self, forKey: .totalScore)
+        joinedAt = try container.decode(Date.self, forKey: .joinedAt)
+        teamColorIndex = try container.decodeIfPresent(Int.self, forKey: .teamColorIndex) ?? 0
+        ownerUid = try container.decodeIfPresent(String.self, forKey: .ownerUid) ?? ""
     }
 }

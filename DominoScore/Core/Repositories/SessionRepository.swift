@@ -84,6 +84,36 @@ final class SessionRepository {
         }
     }
 
+    // MARK: - Start Game
+
+    /// Writes participants and transitions to active atomically.
+    /// Called once when the host taps "Iniciar Partida".
+    func startGame(participants: [Participant]) async {
+        guard let session = currentSession, let id = session.id else { return }
+        do {
+            try await client.startGame(participants: participants, sessionId: id)
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    // MARK: - Team Score
+
+    /// Updates score for a team by applying the delta to the first participant of that team.
+    func updateTeamScore(teamColorIndex: Int, delta: Int) async {
+        guard let session = currentSession, let id = session.id else { return }
+        var updated = session.participants
+        guard let index = updated.firstIndex(where: { $0.teamColorIndex == teamColorIndex }) else { return }
+        updated[index].totalScore += delta
+        do {
+            try await client.updateParticipants(updated, sessionId: id)
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     // MARK: - Cleanup
 
     /// Remove o listener ativo.

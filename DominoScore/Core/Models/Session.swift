@@ -11,6 +11,7 @@ struct Session: Identifiable, Codable, Hashable {
     var code: String
     var hostUid: String
     var status: Status
+    var participants: [Participant]
 
     enum Status: String, Codable, Hashable {
         case waiting
@@ -23,6 +24,21 @@ struct Session: Identifiable, Codable, Hashable {
         case code
         case hostUid
         case status
+        case participants
+    }
+
+    init(
+        id: String? = nil,
+        code: String,
+        hostUid: String,
+        status: Status,
+        participants: [Participant] = []
+    ) {
+        self.id = id
+        self.code = code
+        self.hostUid = hostUid
+        self.status = status
+        self.participants = participants
     }
 
     // MARK: - Mock
@@ -30,6 +46,12 @@ struct Session: Identifiable, Codable, Hashable {
     static let mock = Session(
         code: "AB3K7",
         hostUid: "mock-uid",
-        status: .waiting
+        status: .waiting,
+        participants: [
+            Participant(name: "João", totalScore: 120, teamColorIndex: 0, ownerUid: "mock-uid"),
+            Participant(name: "Maria", totalScore: 85, teamColorIndex: 0, ownerUid: "mock-uid"),
+            Participant(name: "Pedro", totalScore: 200, teamColorIndex: 1, ownerUid: "mock-uid"),
+            Participant(name: "Ana", totalScore: 50, teamColorIndex: 1, ownerUid: "mock-uid")
+        ]
     )
 }

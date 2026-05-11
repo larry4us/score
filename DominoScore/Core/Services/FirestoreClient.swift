@@ -45,6 +45,29 @@ final class FirestoreClient {
             .updateData(["status": status.rawValue])
     }
 
+    // MARK: - Start Game
+
+    /// Writes participants and sets status to `.active` atomically in a single Firestore write.
+    func startGame(participants: [Participant], sessionId: String) async throws {
+        let encoded = try participants.map { try Firestore.Encoder().encode($0) }
+        try await db.collection(collection)
+            .document(sessionId)
+            .updateData([
+                "participants": encoded,
+                "status": Session.Status.active.rawValue
+            ])
+    }
+
+    // MARK: - Participants
+
+    /// Atualiza o array `participants` inteiro no documento da sessão.
+    func updateParticipants(_ participants: [Participant], sessionId: String) async throws {
+        let encoded = try participants.map { try Firestore.Encoder().encode($0) }
+        try await db.collection(collection)
+            .document(sessionId)
+            .updateData(["participants": encoded])
+    }
+
     // MARK: - Listener
 
     /// Abre um snapshot listener em tempo real para um documento de sessão.

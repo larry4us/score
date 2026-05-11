@@ -6,11 +6,13 @@
 import SwiftUI
 
 /// Waiting room shown before the game starts.
+/// Participants are held locally — no Firestore writes until "Iniciar Partida".
 struct WaitingView: View {
     let session: Session
     let participants: [Participant]
     let onAddPlayer: () -> Void
     let onStart: () -> Void
+    let onToggleTeamColor: (String) -> Void
 
     var body: some View {
         VStack(spacing: 24) {
@@ -27,11 +29,33 @@ struct WaitingView: View {
             }
 
             if !participants.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 10) {
                     Text("Jogadores (\(participants.count))")
                         .font(.headline)
+
+                    Text("Toque na cor para mudar de time")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
                     ForEach(participants) { p in
-                        Label(p.name, systemImage: "person.fill")
+                        HStack(spacing: 10) {
+                            Button {
+                                onToggleTeamColor(p.id)
+                            } label: {
+                                Circle()
+                                    .fill(Team.color(for: p.teamColorIndex))
+                                    .frame(width: 28, height: 28)
+                            }
+                            .buttonStyle(.plain)
+
+                            Text(p.name)
+
+                            Spacer()
+
+                            Text(Team.name(for: p.teamColorIndex))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -63,6 +87,7 @@ struct WaitingView: View {
         session: .mock,
         participants: Session.mock.participants,
         onAddPlayer: {},
-        onStart: {}
+        onStart: {},
+        onToggleTeamColor: { _ in }
     )
 }

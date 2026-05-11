@@ -10,6 +10,7 @@ struct HomeView: View {
     @Environment(Coordinator.self) private var coordinator
     @State private var sessionCode = ""
     @State private var isLoading = false
+    @State private var hasNavigated = false
 
     private var repo: SessionRepository { coordinator.sessionRepository }
     private var hostUid: String { coordinator.authService?.currentUserId ?? "" }
@@ -61,8 +62,12 @@ struct HomeView: View {
         .padding()
         .navigationTitle("DominoScore")
         .onChange(of: repo.currentSession) { _, session in
-            guard let session else { return }
+            guard let session, !hasNavigated else { return }
+            hasNavigated = true
             coordinator.navigate(to: .score(.lobby(session: session)))
+        }
+        .onAppear {
+            hasNavigated = false
         }
     }
 
