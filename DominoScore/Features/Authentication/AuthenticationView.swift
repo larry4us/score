@@ -9,7 +9,7 @@ import SwiftUI
 
 /// Tela inicial de autenticação — escolha de método de login.
 struct AuthenticationView: View {
-    var authService: AuthService
+    //var authService: AuthService
     var coordinator: Coordinator
 
     var body: some View {
@@ -61,7 +61,8 @@ struct AuthenticationView: View {
 }
 
 #Preview {
-    CoordinatorView()
+    AuthenticationView(coordinator: .init(authService: .init()      ))
+        .environment(Coordinator(authService: .init()))
 }
 
 
