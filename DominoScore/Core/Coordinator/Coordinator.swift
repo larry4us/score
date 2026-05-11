@@ -9,6 +9,7 @@ import SwiftUI
 
 /// Rotas do fluxo de autenticação.
 enum AuthRoute: Hashable {
+    case login
     case emailSignIn
 }
 
@@ -71,7 +72,7 @@ final class Coordinator {
 
     /// Decide a rota raiz com base no estado de autenticação.
     func rootRoute() -> AppRoute {
-        isAuthenticated ? .score(.home) : .auth(.emailSignIn)
+        isAuthenticated ? .score(.home) : .auth(.login)
     }
 
     // MARK: - View Builders
@@ -89,6 +90,8 @@ final class Coordinator {
     @ViewBuilder
     private func buildAuth(_ route: AuthRoute) -> some View {
         switch route {
+        case .login:
+            AuthenticationView()
         case .emailSignIn:
             if let authService {
                 EmailSignInView(authService: authService)
@@ -100,7 +103,7 @@ final class Coordinator {
     private func buildScore(_ route: ScoreRoute) -> some View {
         switch route {
         case .home:
-            HomeView()
+            CreateSessionView()
         case .lobby(let session):
             LobbyView(session: session)
         case .scoreboard(let session):
@@ -125,6 +128,9 @@ struct CoordinatorView: View {
         .environment(coordinator)
         .onAppear {
             coordinator.authService?.restoreSession()
+        }
+        .onChange(of: coordinator.isAuthenticated) {
+            coordinator.popToRoot()
         }
     }
 }

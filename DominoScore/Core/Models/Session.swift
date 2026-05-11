@@ -49,9 +49,9 @@ struct Session: Identifiable, Codable, Hashable {
         status: .waiting,
         participants: [
             Participant(name: "João", totalScore: 120, teamColorIndex: 0, ownerUid: "mock-uid"),
-            Participant(name: "Maria", totalScore: 85, teamColorIndex: 0, ownerUid: "mock-uid"),
-            Participant(name: "Pedro", totalScore: 200, teamColorIndex: 1, ownerUid: "mock-uid"),
-            Participant(name: "Ana", totalScore: 50, teamColorIndex: 1, ownerUid: "mock-uid")
+            Participant(name: "Maria", totalScore: 85, teamColorIndex: 0, ownerUid: "joiner-1"),
+            Participant(name: "Pedro", totalScore: 200, teamColorIndex: 1, ownerUid: "joiner-2"),
+            Participant(name: "Ana", totalScore: 50, teamColorIndex: 1, ownerUid: "joiner-3")
         ]
     )
 }

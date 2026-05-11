@@ -6,19 +6,26 @@
 import SwiftUI
 
 /// Lobby / placar ao vivo. Coordena as subviews por status da sessão.
+/// Distinguishes host (offline setup) from joiners (write to Firestore immediately).
 struct LobbyView: View {
     @Environment(Coordinator.self) private var coordinator
+    @Environment(\.dismiss) private var dismiss
     let session: Session
 
     @State private var showAddPlayer = false
     @State private var newPlayerName = ""
-    @State private var localParticipants: [Participant] = []
+    @State private var hasJoined = false
+    @State private var showLeaveConfirmation = false
 
     private var repo: SessionRepository { coordinator.sessionRepository }
     private var liveSession: Session { repo.currentSession ?? session }
     private var currentUserId: String { coordinator.authService?.currentUserId ?? "" }
+    private var currentFirstName: String {
+        let full = coordinator.authService?.displayName ?? ""
+        return full.components(separatedBy: " ").first ?? full
+    }
+    private var isHost: Bool { liveSession.hostUid == currentUserId }
 
-    /// Valores fixos dos botões (preparado para personalização futura).
     private let scoreDeltas = [5, 10, 50]
 
     /// Groups live participants into teams (used for active/finished phases).
@@ -34,18 +41,19 @@ struct LobbyView: View {
             case .waiting:
                 WaitingView(
                     session: liveSession,
-                    participants: localParticipants,
+                    participants: liveSession.participants,
+                    currentUserId: currentUserId,
+                    isHost: isHost,
                     onAddPlayer: { showAddPlayer = true },
                     onStart: { Task { await startGame() } },
-                    onToggleTeamColor: { toggleTeamColor(for: $0) }
+                    onToggleTeamColor: { handleToggleTeamColor(for: $0) }
                 )
             case .active:
                 ActiveGameView(
                     teams: teams,
                     scoreDeltas: scoreDeltas,
                     currentUserId: currentUserId,
-                    onScoreChange: { colorIndex, delta in handleTeamScoreChange(teamColorIndex: colorIndex, delta: delta) },
-                    onFinish: { Task { await updateStatus(.finished) } }
+                    onScoreChange: { colorIndex, delta in handleTeamScoreChange(teamColorIndex: colorIndex, delta: delta) }
                 )
             case .finished:
                 FinishedGameView(teams: teams)
@@ -54,6 +62,15 @@ struct LobbyView: View {
         .navigationTitle(liveSession.code)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    showLeaveConfirmation = true
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Label(statusLabel, systemImage: "circle.fill")
                     .font(.caption)
@@ -66,28 +83,50 @@ struct LobbyView: View {
             Button("Adicionar", action: handleAddPlayer)
             Button("Cancelar", role: .cancel) { newPlayerName = "" }
         }
+        .alert(leaveAlertTitle, isPresented: $showLeaveConfirmation) {
+            Button("Sair", role: .destructive) {
+                Task { await leaveSession() }
+            }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text(leaveAlertMessage)
+        }
+        .onAppear {
+            guard !hasJoined else { return }
+            hasJoined = true
+
+            // Joiner: add self as participant if not already present
+            if !isHost {
+                let alreadyJoined = liveSession.participants.contains { $0.ownerUid == currentUserId }
+                if !alreadyJoined {
+                    let participant = Participant(name: currentFirstName, ownerUid: currentUserId)
+                    Task { await repo.addParticipant(participant) }
+                }
+            }
+        }
+        .interactiveDismissDisabled()
     }
 
-    // MARK: - Actions (offline setup)
+    // MARK: - Actions (waiting)
 
     private func handleAddPlayer() {
         let name = newPlayerName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
-        localParticipants.append(
-            Participant(name: name, ownerUid: currentUserId)
-        )
+        let participant = Participant(name: name, ownerUid: currentUserId)
+        Task { await repo.addParticipant(participant) }
         newPlayerName = ""
     }
 
-    private func toggleTeamColor(for participantId: String) {
-        guard let index = localParticipants.firstIndex(where: { $0.id == participantId }) else { return }
-        localParticipants[index].teamColorIndex =
-            (localParticipants[index].teamColorIndex + 1) % Team.availableColors
+    private func handleToggleTeamColor(for participantId: String) {
+        guard let participant = liveSession.participants.first(where: { $0.id == participantId }),
+              participant.ownerUid == currentUserId else { return }
+        let newColor = (participant.teamColorIndex + 1) % Team.availableColors
+        Task { await repo.updateParticipantTeamColor(participantId: participantId, teamColorIndex: newColor) }
     }
 
     private func startGame() async {
-        guard !localParticipants.isEmpty else { return }
-        await repo.startGame(participants: localParticipants)
+        guard isHost, !liveSession.participants.isEmpty else { return }
+        await repo.startGame(participants: liveSession.participants)
     }
 
     // MARK: - Actions (active game)
@@ -99,6 +138,27 @@ struct LobbyView: View {
     private func updateStatus(_ status: Session.Status) async {
         guard let id = liveSession.id else { return }
         await repo.updateStatus(status, sessionId: id)
+    }
+
+    // MARK: - Leave
+
+    private func leaveSession() async {
+        if isHost && liveSession.status == .active {
+            await updateStatus(.finished)
+        }
+        repo.stopListening()
+        dismiss()
+    }
+
+    private var leaveAlertTitle: String {
+        liveSession.status == .active ? "Finalizar Partida" : "Sair da Sala"
+    }
+
+    private var leaveAlertMessage: String {
+        if isHost && liveSession.status == .active {
+            return "A partida será finalizada para todos. Deseja continuar?"
+        }
+        return "Tem certeza que deseja sair?"
     }
 
     // MARK: - Helpers
@@ -120,7 +180,7 @@ struct LobbyView: View {
     }
 }
 
-#Preview {
+#Preview("Active — Host") {
     NavigationStack {
         LobbyView(session: Session(
             code: "AB3K7",

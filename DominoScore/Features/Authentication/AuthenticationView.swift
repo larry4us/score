@@ -9,8 +9,7 @@ import SwiftUI
 
 /// Tela inicial de autenticação — escolha de método de login.
 struct AuthenticationView: View {
-    //var authService: AuthService
-    var coordinator: Coordinator
+    @Environment(Coordinator.self) private var coordinator
 
     var body: some View {
         VStack(spacing: 32) {
@@ -42,16 +41,6 @@ struct AuthenticationView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-
-                // Placeholder para métodos futuros
-                // Button {
-                //     coordinator.navigate(to: .googleSignIn)
-                // } label: {
-                //     Label("Continuar com Google", systemImage: "g.circle.fill")
-                //         .frame(maxWidth: .infinity)
-                // }
-                // .buttonStyle(.bordered)
-                // .controlSize(.large)
             }
 
             Spacer()
@@ -61,8 +50,10 @@ struct AuthenticationView: View {
 }
 
 #Preview {
-    AuthenticationView(coordinator: .init(authService: .init()      ))
-        .environment(Coordinator(authService: .init()))
+    NavigationStack {
+        AuthenticationView()
+            .environment(Coordinator(authService: .init()))
+    }
 }
 
 

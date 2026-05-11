@@ -6,14 +6,19 @@
 import SwiftUI
 
 /// Main hub: create a session, join by code, or scan QR.
-struct HomeView: View {
+struct CreateSessionView: View {
     @Environment(Coordinator.self) private var coordinator
     @State private var sessionCode = ""
     @State private var isLoading = false
     @State private var hasNavigated = false
+    @State private var activeSession: Session?
 
     private var repo: SessionRepository { coordinator.sessionRepository }
     private var hostUid: String { coordinator.authService?.currentUserId ?? "" }
+    private var hostFirstName: String {
+        let full = coordinator.authService?.displayName ?? ""
+        return full.components(separatedBy: " ").first ?? full
+    }
 
     var body: some View {
         VStack(spacing: 24) {
@@ -64,10 +69,19 @@ struct HomeView: View {
         .onChange(of: repo.currentSession) { _, session in
             guard let session, !hasNavigated else { return }
             hasNavigated = true
-            coordinator.navigate(to: .score(.lobby(session: session)))
+            activeSession = session
         }
         .onAppear {
             hasNavigated = false
+        }
+        .fullScreenCover(item: $activeSession, onDismiss: {
+            hasNavigated = false
+            sessionCode = ""
+        }) { session in
+            NavigationStack {
+                LobbyView(session: session)
+                    .environment(coordinator)
+            }
         }
     }
 
@@ -75,7 +89,8 @@ struct HomeView: View {
 
     private func createSession() async {
         isLoading = true
-        await repo.createSession(hostUid: hostUid)
+        let hostParticipant = Participant(name: hostFirstName, ownerUid: hostUid)
+        await repo.createSession(hostUid: hostUid, initialParticipant: hostParticipant)
         isLoading = false
     }
 

@@ -24,7 +24,18 @@ final class AuthService: Hashable {
 
     /// Restores a previous Firebase Auth session.
     /// Call this **after** `FirebaseApp.configure()` has completed.
+    ///
+    /// On first launch after a fresh install, Firebase Auth may still have a
+    /// cached user in the Keychain (which survives app deletion on iOS).
+    /// We use a UserDefaults flag to detect first launch and sign out in that case.
     func restoreSession() {
+        let hasLaunchedKey = "hasLaunchedBefore"
+        if !UserDefaults.standard.bool(forKey: hasLaunchedKey) {
+            UserDefaults.standard.set(true, forKey: hasLaunchedKey)
+            try? Auth.auth().signOut()
+            return
+        }
+
         if let user = Auth.auth().currentUser {
             currentUserId = user.uid
             displayName = user.displayName

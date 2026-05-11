@@ -30,11 +30,13 @@ final class SessionRepository {
     // MARK: - Create
 
     /// Cria uma nova sessão com código aleatório de 5 caracteres e status `waiting`.
-    func createSession(hostUid: String) async {
+    /// Includes the host as the initial participant.
+    func createSession(hostUid: String, initialParticipant: Participant? = nil) async {
         let session = Session(
             code: codeGenerator.generate(),
             hostUid: hostUid,
-            status: .waiting
+            status: .waiting,
+            participants: initialParticipant.map { [$0] } ?? []
         )
 
         do {
@@ -78,6 +80,35 @@ final class SessionRepository {
     func updateStatus(_ status: Session.Status, sessionId: String) async {
         do {
             try await client.updateStatus(status, sessionId: sessionId)
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    // MARK: - Participants
+
+    /// Adds a participant to the live session in Firestore (used by joiners).
+    func addParticipant(_ participant: Participant) async {
+        guard let session = currentSession, let id = session.id else { return }
+        var updated = session.participants
+        updated.append(participant)
+        do {
+            try await client.updateParticipants(updated, sessionId: id)
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Updates the team color of a participant in the live session.
+    func updateParticipantTeamColor(participantId: String, teamColorIndex: Int) async {
+        guard let session = currentSession, let id = session.id else { return }
+        var updated = session.participants
+        guard let index = updated.firstIndex(where: { $0.id == participantId }) else { return }
+        updated[index].teamColorIndex = teamColorIndex
+        do {
+            try await client.updateParticipants(updated, sessionId: id)
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
