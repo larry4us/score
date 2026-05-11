@@ -142,7 +142,7 @@ struct CreateSessionView: View {
 
     private func createSession() async {
         isLoading = true
-        let hostParticipant = Participant(name: hostFirstName, ownerUid: hostUid)
+        let hostParticipant = Participant(id: hostUid, name: hostFirstName, ownerUid: hostUid)
         await repo.createSession(hostUid: hostUid, initialParticipant: hostParticipant)
         isLoading = false
     }

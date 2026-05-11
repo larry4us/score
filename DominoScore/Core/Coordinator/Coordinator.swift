@@ -37,13 +37,15 @@ final class Coordinator {
     var path = NavigationPath()
 
     /// Inicializador padrão — usado pelo app com Firebase.
-    init(authService: AuthService, sessionRepository: SessionRepository = SessionRepository()) {
+    /// Shares a single FirestoreClient between AuthService and SessionRepository.
+    init(firestoreClient: FirestoreClient = FirestoreClient()) {
+        let authService = AuthService(firestoreClient: firestoreClient)
         self.authService = authService
-        self.sessionRepository = sessionRepository
+        self.sessionRepository = SessionRepository(client: firestoreClient)
     }
 
     /// Inicializador para testes — sem dependência do Firebase.
-    init(authenticated: Bool = false) {
+    init(authenticated: Bool) {
         self.authService = nil
         self.sessionRepository = SessionRepository()
         self._isAuthenticated = authenticated
@@ -116,7 +118,7 @@ final class Coordinator {
 
 /// View raiz que encapsula o NavigationStack e delega a resolução de rotas ao Coordinator.
 struct CoordinatorView: View {
-    @State private var coordinator = Coordinator(authService: AuthService())
+    @State private var coordinator = Coordinator()
 
     var body: some View {
         NavigationStack(path: $coordinator.path) {

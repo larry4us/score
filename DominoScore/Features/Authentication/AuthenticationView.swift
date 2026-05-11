@@ -52,7 +52,7 @@ struct AuthenticationView: View {
 #Preview {
     NavigationStack {
         AuthenticationView()
-            .environment(Coordinator(authService: .init()))
+            .environment(Coordinator())
     }
 }
 

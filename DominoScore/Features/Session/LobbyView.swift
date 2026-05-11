@@ -97,9 +97,9 @@ struct LobbyView: View {
 
             // Joiner: add self as participant if not already present
             if !isHost {
-                let alreadyJoined = liveSession.participants.contains { $0.ownerUid == currentUserId }
+                let alreadyJoined = liveSession.participants.contains { $0.id == currentUserId }
                 if !alreadyJoined {
-                    let participant = Participant(name: currentFirstName, ownerUid: currentUserId)
+                    let participant = Participant(id: currentUserId, name: currentFirstName, ownerUid: currentUserId)
                     Task { await repo.addParticipant(participant) }
                 }
             }
