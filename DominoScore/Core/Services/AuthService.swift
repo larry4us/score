@@ -59,6 +59,16 @@ final class AuthService: Hashable {
         displayName = name
     }
 
+    // MARK: - Profile
+
+    func updateDisplayName(_ name: String) async throws {
+        guard let user = Auth.auth().currentUser else { return }
+        let changeRequest = user.createProfileChangeRequest()
+        changeRequest.displayName = name
+        try await changeRequest.commitChanges()
+        displayName = name
+    }
+
     // MARK: - Session
 
     func signOut() {

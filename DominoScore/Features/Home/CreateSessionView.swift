@@ -12,6 +12,8 @@ struct CreateSessionView: View {
     @State private var isLoading = false
     @State private var hasNavigated = false
     @State private var activeSession: Session?
+    @State private var showEditName = false
+    @State private var editedName = ""
 
     private var repo: SessionRepository { coordinator.sessionRepository }
     private var hostUid: String { coordinator.authService?.currentUserId ?? "" }
@@ -20,8 +22,23 @@ struct CreateSessionView: View {
         return full.components(separatedBy: " ").first ?? full
     }
 
+    private var displayName: String {
+        coordinator.authService?.displayName ?? ""
+    }
+
     var body: some View {
         VStack(spacing: 24) {
+            // Greeting
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Olá, \(hostFirstName)!")
+                    .font(.title.bold())
+                Text("Crie ou entre em uma partida")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 8)
+
             Spacer()
 
             // Criar nova sessão
@@ -66,6 +83,42 @@ struct CreateSessionView: View {
         }
         .padding()
         .navigationTitle("DominoScore")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        editedName = displayName
+                        showEditName = true
+                    } label: {
+                        Label("Editar Nome", systemImage: "pencil")
+                    }
+
+                    Divider()
+
+                    Button(role: .destructive) {
+                        coordinator.authService?.signOut()
+                    } label: {
+                        Label("Sair", systemImage: "rectangle.portrait.and.arrow.right")
+                    }
+                } label: {
+                    Image(systemName: "person.crop.circle")
+                        .font(.title3)
+                }
+            }
+        }
+        .alert("Editar Nome", isPresented: $showEditName) {
+            TextField("Seu nome", text: $editedName)
+            Button("Salvar") {
+                let name = editedName.trimmingCharacters(in: .whitespaces)
+                guard !name.isEmpty else { return }
+                Task {
+                    try? await coordinator.authService?.updateDisplayName(name)
+                }
+            }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text("Digite seu novo nome")
+        }
         .onChange(of: repo.currentSession) { _, session in
             guard let session, !hasNavigated else { return }
             hasNavigated = true
@@ -100,3 +153,10 @@ struct CreateSessionView: View {
         isLoading = false
     }
 }
+#Preview {
+    NavigationStack {
+        CreateSessionView()
+            .environment(Coordinator(authenticated: true))
+    }
+}
+
