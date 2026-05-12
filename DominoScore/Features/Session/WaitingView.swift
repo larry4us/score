@@ -14,7 +14,6 @@ struct WaitingView: View {
     let currentUserId: String
     let isHost: Bool
     let onAddPlayer: () -> Void
-    let onStart: () -> Void
     let onToggleTeamColor: (String) -> Void
     
     @Namespace private var glassNamespace
@@ -73,51 +72,7 @@ private struct SessionCodeHeader: View {
     }
 }
 
-// MARK: - QR Code Sheet
 
-private struct QRCodeSheet: View {
-    let code: String
-    @Environment(\.dismiss) private var dismiss
-    
-    private let qrService = QRCodeService()
-    
-    var body: some View {
-        
-        VStack(spacing: 24) {
-            Spacer()
-            
-            Text("Compartilhar Sala")
-                .font(.title2.bold())
-            
-            Text("Peça para escanearem este código para entrar na sala")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-            
-            if let uiImage = qrService.generateQRCode(from: code) {
-                Image(uiImage: uiImage)
-                    .interpolation(.none)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 200, height: 200)
-                    .padding(16)
-                    .glassEffect(in: .rect(cornerRadius: 20))
-            }
-            
-            Text(code)
-                .font(.title3.monospaced().bold())
-                .foregroundStyle(.secondary)
-            
-            Spacer()
-        }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Fechar") { dismiss() }
-            }
-        }
-    }
-}
 
 // MARK: - Participant Card
 
@@ -201,7 +156,7 @@ private extension WaitingView {
                                     }
                                 )
                                 .glassEffect(
-                                    .regular.tint(teamColor.opacity(0.2)).interactive(isMine),
+                                    .regular.tint(teamColor.opacity(0.3)).interactive(isMine),
                                     in: .rect(cornerRadius: 16)
                                 )
                                 .glassEffectID(participant.id, in: glassNamespace)
@@ -228,12 +183,7 @@ private extension WaitingView {
                 .controlSize(.large)
                 .disabled(participants.count >= 4)
             
-            if isHost {
-                Button("Iniciar Partida", action: onStart)
-                    .buttonStyle(.glassProminent)
-                    .controlSize(.large)
-                    .disabled(participants.isEmpty)
-            } else {
+            if !isHost {
                 Text("Aguardando o host iniciar...")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -253,7 +203,6 @@ private extension WaitingView {
         currentUserId: "mock-uid",
         isHost: true,
         onAddPlayer: {},
-        onStart: {},
         onToggleTeamColor: { _ in }
     )
 }
@@ -265,7 +214,6 @@ private extension WaitingView {
         currentUserId: "joiner-1",
         isHost: false,
         onAddPlayer: {},
-        onStart: {},
         onToggleTeamColor: { _ in }
     )
 }
@@ -277,7 +225,6 @@ private extension WaitingView {
         currentUserId: "mock-uid",
         isHost: true,
         onAddPlayer: {},
-        onStart: {},
         onToggleTeamColor: { _ in }
     )
 }
@@ -295,7 +242,6 @@ private extension WaitingView {
         currentUserId: "mock-uid",
         isHost: true,
         onAddPlayer: {},
-        onStart: {},
         onToggleTeamColor: { _ in }
     )
 }
@@ -313,7 +259,6 @@ private extension WaitingView {
         currentUserId: "mock-uid",
         isHost: true,
         onAddPlayer: {},
-        onStart: {},
         onToggleTeamColor: { _ in }
     )
 }

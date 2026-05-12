@@ -12,7 +12,15 @@ struct Session: Identifiable, Codable, Hashable {
     var hostUid: String
     var status: Status
     var participants: [Participant]
-
+    
+    var displayName: String {
+        switch status {
+        case .active: return "Ativo"
+        case .finished: return "Finalizado"
+        case .waiting: return "Lobby"
+        }
+    }
+    
     enum Status: String, Codable, Hashable {
         case waiting
         case active

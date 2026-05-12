@@ -19,6 +19,8 @@ struct ActiveGameView: View {
     @State private var flashingTeams: Set<Int> = []
     /// Trigger for remote-change haptic feedback.
     @State private var remoteChangeTrigger = 0
+    /// Toggle between adding and subtracting points.
+    @State private var isSubtracting = false
 
     @Namespace private var scoreNamespace
 
@@ -109,44 +111,46 @@ struct ActiveGameView: View {
     private var ownTeamControls: some View {
         VStack(spacing: 12) {
             if let myTeam {
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(myTeam.color)
-                        .frame(width: 10, height: 10)
-                    Text("Seu time: \(Team.name(for: myTeam.colorIndex))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                HStack {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(myTeam.color)
+                            .frame(width: 10, height: 10)
+                        Text("Seu time: \(Team.name(for: myTeam.colorIndex))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus")
+                            .font(.caption2.weight(.black))
+                            .foregroundStyle(isSubtracting ? Color.secondary : Color.green)
+                        Toggle("", isOn: $isSubtracting)
+                            .toggleStyle(.switch)
+                            .labelsHidden()
+                            .tint(.red)
+                        Image(systemName: "minus")
+                            .font(.caption2.weight(.black))
+                            .foregroundStyle(isSubtracting ? Color.red : Color.secondary)
+                    }
+                    .sensoryFeedback(.selection, trigger: isSubtracting)
                 }
 
-                // Add buttons
                 HStack(spacing: 10) {
                     ForEach(scoreDeltas, id: \.self) { delta in
+                        let sign = isSubtracting ? -1 : 1
                         Button {
-                            onScoreChange(myTeam.colorIndex, delta)
+                            onScoreChange(myTeam.colorIndex, delta * sign)
                         } label: {
-                            Text("+\(delta)")
+                            Text("\(isSubtracting ? "-" : "+")\(delta)")
                                 .font(.title3.weight(.bold).monospacedDigit())
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 14)
                         }
                         .buttonStyle(.glassProminent)
-                        .tint(.green)
-                    }
-                }
-
-                // Subtract buttons
-                HStack(spacing: 10) {
-                    ForEach(scoreDeltas, id: \.self) { delta in
-                        Button {
-                            onScoreChange(myTeam.colorIndex, -delta)
-                        } label: {
-                            Text("-\(delta)")
-                                .font(.title3.weight(.bold).monospacedDigit())
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                        }
-                        .buttonStyle(.glass)
-                        .tint(.red)
+                        .tint(isSubtracting ? .red : .green)
                     }
                 }
             } else {
@@ -196,7 +200,7 @@ struct ActiveGameView: View {
     ]
     ActiveGameView(
         teams: teams,
-        scoreDeltas: [5, 10, 50],
+        scoreDeltas: [5, 10, 25, 50],
         currentUserId: "me",
         onScoreChange: { _, _ in }
     )

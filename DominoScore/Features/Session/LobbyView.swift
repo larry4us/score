@@ -26,7 +26,7 @@ struct LobbyView: View {
     }
     private var isHost: Bool { liveSession.hostUid == currentUserId }
 
-    private let scoreDeltas = [5, 10, 50]
+    private let scoreDeltas = [5, 10, 25, 50]
 
     /// Groups live participants into teams (used for active/finished phases).
     private var teams: [Team] {
@@ -45,7 +45,6 @@ struct LobbyView: View {
                     currentUserId: currentUserId,
                     isHost: isHost,
                     onAddPlayer: { showAddPlayer = true },
-                    onStart: { Task { await startGame() } },
                     onToggleTeamColor: { handleToggleTeamColor(for: $0) }
                 )
             case .active:
@@ -59,7 +58,7 @@ struct LobbyView: View {
                 FinishedGameView(teams: teams)
             }
         }
-        .navigationTitle(liveSession.code)
+        .navigationTitle(liveSession.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -71,11 +70,13 @@ struct LobbyView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                Label(statusLabel, systemImage: "circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(statusColor)
-                    .labelStyle(.titleAndIcon)
+            if isHost && liveSession.status == .waiting {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Iniciar", systemImage: "play.fill") {
+                        Task { await startGame() }
+                    }
+                    .disabled(liveSession.participants.isEmpty)
+                }
             }
         }
         .alert("Adicionar Jogador", isPresented: $showAddPlayer) {
@@ -188,6 +189,23 @@ struct LobbyView: View {
             code: "AB3K7",
             hostUid: "mock",
             status: .active,
+            participants: [
+                Participant(name: "João", totalScore: 120, teamColorIndex: 0, ownerUid: "mock"),
+                Participant(name: "Maria", totalScore: 85, teamColorIndex: 0, ownerUid: "mock"),
+                Participant(name: "Pedro", totalScore: 200, teamColorIndex: 1, ownerUid: "other"),
+                Participant(name: "Ana", totalScore: 50, teamColorIndex: 1, ownerUid: "other")
+            ]
+        ))
+        .environment(Coordinator(authenticated: true))
+    }
+}
+
+#Preview("Waiting — Host") {
+    NavigationStack {
+        LobbyView(session: Session(
+            code: "AB3K7",
+            hostUid: "mock",
+            status: .waiting,
             participants: [
                 Participant(name: "João", totalScore: 120, teamColorIndex: 0, ownerUid: "mock"),
                 Participant(name: "Maria", totalScore: 85, teamColorIndex: 0, ownerUid: "mock"),
