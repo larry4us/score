@@ -43,4 +43,13 @@ struct Participant: Identifiable, Codable, Hashable {
         teamColorIndex = try container.decodeIfPresent(Int.self, forKey: .teamColorIndex) ?? 0
         ownerUid = try container.decodeIfPresent(String.self, forKey: .ownerUid) ?? ""
     }
+    
+    //MARK: -- mock
+    
+    static let mockList: [Participant] = [
+        Participant(name: "João", totalScore: 120, teamColorIndex: 0, ownerUid: "mock-uid"),
+        Participant(name: "Maria", totalScore: 85, teamColorIndex: 1, ownerUid: "joiner-1"),
+        Participant(name: "Pedro", totalScore: 200, teamColorIndex: 2, ownerUid: "joiner-2"),
+        Participant(name: "Ana", totalScore: 50, teamColorIndex: 2, ownerUid: "joiner-3")
+    ]
 }

@@ -53,7 +53,7 @@ struct CreateSessionView: View {
                         .frame(maxWidth: .infinity)
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.glassProminent)
             .controlSize(.large)
             .disabled(isLoading)
 
@@ -67,7 +67,7 @@ struct CreateSessionView: View {
                 Button("Entrar") {
                     Task { await findSession() }
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.glass)
                 .disabled(sessionCode.count < 5 || isLoading)
             }
 
@@ -159,4 +159,3 @@ struct CreateSessionView: View {
             .environment(Coordinator(authenticated: true))
     }
 }
-

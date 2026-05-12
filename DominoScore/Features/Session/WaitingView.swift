@@ -6,7 +6,8 @@
 import SwiftUI
 
 /// Waiting room shown before the game starts.
-/// Each participant is shown as a colored card. Tapping your own card cycles the team color.
+/// Participant cards use Liquid Glass with team-colored tints.
+/// Same-team cards fuse together via `glassEffectUnion`.
 struct WaitingView: View {
     let session: Session
     let participants: [Participant]
@@ -16,116 +17,179 @@ struct WaitingView: View {
     let onStart: () -> Void
     let onToggleTeamColor: (String) -> Void
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 10),
-        GridItem(.flexible(), spacing: 10)
-    ]
+    @Namespace private var glassNamespace
 
-    var body: some View {
-        VStack(spacing: 20) {
-            // Session code
-            VStack(spacing: 4) {
-                Text("Código da Sala")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(session.code)
-                    .font(.largeTitle.monospaced().bold())
-                    .padding(8)
-                    .background(.ultraThinMaterial, in: .rect(cornerRadius: 12))
-            }
-            .padding(.top, 8)
+    /// Participants sorted by team so same-team members are always adjacent.
+    private var sortedParticipants: [Participant] {
+        participants.sorted { $0.teamColorIndex < $1.teamColorIndex }
+    }
 
-            if participants.isEmpty {
-                Spacer()
-                Text("Adicione jogadores para começar")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Spacer()
-            } else {
-                Text("Toque no seu card para mudar de time")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                // Player cards grid
-                LazyVGrid(columns: columns, spacing: 10) {
-                    ForEach(participants) { p in
-                        playerCard(for: p)
-                    }
-                }
-                .padding(.horizontal)
-
-                Spacer()
-            }
-
-            // Actions
-            VStack(spacing: 12) {
-                Button("Adicionar Jogador", systemImage: "person.badge.plus", action: onAddPlayer)
-                    .frame(maxWidth: .infinity)
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-                    .disabled(participants.count >= 4)
-
-                if isHost {
-                    Button("Iniciar Partida", action: onStart)
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                        .disabled(participants.isEmpty)
-                } else {
-                    Text("Aguardando o host iniciar...")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(.horizontal)
-            .padding(.bottom)
+    /// Splits sorted participants into rows of 2 for a clean grid.
+    private var rows: [[Participant]] {
+        stride(from: 0, to: sortedParticipants.count, by: 2).map { index in
+            Array(sortedParticipants[index..<min(index + 2, sortedParticipants.count)])
         }
     }
 
-    // MARK: - Player Card
+    var body: some View {
+        VStack(spacing: 20) {
+            sessionCodeHeader
+            participantGrid
+            actionButtons
+        }
+    }
+}
 
-    private func playerCard(for participant: Participant) -> some View {
-        let isMine = participant.ownerUid == currentUserId
-        let color = Team.color(for: participant.teamColorIndex)
+// MARK: - Session Code Header
 
-        return Button {
-            guard isMine else { return }
-            onToggleTeamColor(participant.id)
-        } label: {
+private struct SessionCodeHeader: View {
+    let code: String
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text("Código da Sala")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(code)
+                .font(.largeTitle.monospaced().bold())
+                .padding(8)
+                .glassEffect(in: .rect(cornerRadius: 12))
+        }
+        .padding(.top, 8)
+    }
+}
+
+// MARK: - Participant Card
+
+private struct ParticipantCard: View {
+    let participant: Participant
+    let isHost: Bool
+    let isMine: Bool
+    let sessionHostUid: String
+    let onToggle: () -> Void
+
+    var body: some View {
+        Button(action: handleTap) {
             VStack(spacing: 6) {
                 HStack(spacing: 4) {
-                    if participant.ownerUid == session.hostUid {
+                    if participant.ownerUid == sessionHostUid {
                         Image(systemName: "crown.fill")
                             .font(.caption2)
                             .foregroundStyle(.yellow)
                     }
                     Text(participant.name)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.primary)
+                        .font(.subheadline.bold())
                         .lineLimit(1)
                 }
-
                 Text(Team.name(for: participant.teamColorIndex))
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.8))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
-            .background(color.gradient, in: .rect(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(.white.opacity(isMine ? 0.6 : 0), lineWidth: 2)
-            )
-            .opacity(isMine ? 1.0 : 0.7)
         }
         .buttonStyle(.plain)
+        .opacity(isMine ? 1.0 : 0.7)
         .sensoryFeedback(.selection, trigger: participant.teamColorIndex)
+        .accessibilityLabel("\(participant.name), \(Team.name(for: participant.teamColorIndex))")
+        .accessibilityHint(isMine ? "Toque para mudar de time" : "")
+    }
+
+    private func handleTap() {
+        guard isMine else { return }
+        onToggle()
     }
 }
 
-#Preview {
+// MARK: - Private Subviews
+
+private extension WaitingView {
+    var sessionCodeHeader: some View {
+        SessionCodeHeader(code: session.code)
+    }
+
+    @ViewBuilder
+    var participantGrid: some View {
+        if participants.isEmpty {
+            ContentUnavailableView(
+                "Nenhum jogador",
+                systemImage: "person.slash",
+                description: Text("Adicione jogadores para começar")
+            )
+        } else {
+            Text("Toque no seu card para mudar de time")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            GlassEffectContainer(spacing: 12) {
+                VStack(spacing: 12) {
+                    ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                        HStack(spacing: 12) {
+                            ForEach(row) { participant in
+                                let isMine = participant.ownerUid == currentUserId
+                                let teamColor = Team.color(for: participant.teamColorIndex)
+
+                                ParticipantCard(
+                                    participant: participant,
+                                    isHost: isHost,
+                                    isMine: isMine,
+                                    sessionHostUid: session.hostUid,
+                                    onToggle: { 
+                                        withAnimation {
+                                            onToggleTeamColor(participant.id)
+                                        }
+                                    }
+                                )
+                                .glassEffect(
+                                    .regular.tint(teamColor.opacity(0.2)).interactive(isMine),
+                                    in: .rect(cornerRadius: 16)
+                                )
+                                .glassEffectID(participant.id, in: glassNamespace)
+                                .glassEffectUnion(
+                                    id: participant.teamColorIndex,
+                                    namespace: glassNamespace
+                                )
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal)
+            }
+
+            Spacer()
+        }
+    }
+
+    var actionButtons: some View {
+        VStack(spacing: 12) {
+            Button("Adicionar Jogador", systemImage: "person.badge.plus", action: onAddPlayer)
+                .frame(maxWidth: .infinity)
+                .buttonStyle(.glass)
+                .controlSize(.large)
+                .disabled(participants.count >= 4)
+
+            if isHost {
+                Button("Iniciar Partida", action: onStart)
+                    .buttonStyle(.glassProminent)
+                    .controlSize(.large)
+                    .disabled(participants.isEmpty)
+            } else {
+                Text("Aguardando o host iniciar...")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.bottom)
+    }
+}
+
+// MARK: - Previews
+
+#Preview("Host — 4 players, 2 teams") {
     WaitingView(
         session: .mock,
-        participants: Session.mock.participants,
+        participants: Participant.mockList,
         currentUserId: "mock-uid",
         isHost: true,
         onAddPlayer: {},
@@ -133,3 +197,64 @@ struct WaitingView: View {
         onToggleTeamColor: { _ in }
     )
 }
+
+#Preview("Joiner — waiting") {
+    WaitingView(
+        session: .mock,
+        participants: Participant.mockList,
+        currentUserId: "joiner-1",
+        isHost: false,
+        onAddPlayer: {},
+        onStart: {},
+        onToggleTeamColor: { _ in }
+    )
+}
+
+#Preview("Empty room") {
+    WaitingView(
+        session: .mock,
+        participants: [],
+        currentUserId: "mock-uid",
+        isHost: true,
+        onAddPlayer: {},
+        onStart: {},
+        onToggleTeamColor: { _ in }
+    )
+}
+
+#Preview("All same team") {
+    let allRed = [
+        Participant(name: "João", teamColorIndex: 0, ownerUid: "mock-uid"),
+        Participant(name: "Maria", teamColorIndex: 0, ownerUid: "joiner-1"),
+        Participant(name: "Pedro", teamColorIndex: 0, ownerUid: "joiner-2"),
+        Participant(name: "Ana", teamColorIndex: 0, ownerUid: "joiner-3"),
+    ]
+    WaitingView(
+        session: .mock,
+        participants: allRed,
+        currentUserId: "mock-uid",
+        isHost: true,
+        onAddPlayer: {},
+        onStart: {},
+        onToggleTeamColor: { _ in }
+    )
+}
+
+#Preview("3 teams") {
+    let threeTeams = [
+        Participant(name: "João", teamColorIndex: 0, ownerUid: "mock-uid"),
+        Participant(name: "Maria", teamColorIndex: 1, ownerUid: "joiner-1"),
+        Participant(name: "Pedro", teamColorIndex: 2, ownerUid: "joiner-2"),
+        Participant(name: "Ana", teamColorIndex: 1, ownerUid: "joiner-3"),
+    ]
+    WaitingView(
+        session: .mock,
+        participants: threeTeams,
+        currentUserId: "mock-uid",
+        isHost: true,
+        onAddPlayer: {},
+        onStart: {},
+        onToggleTeamColor: { _ in }
+    )
+}
+

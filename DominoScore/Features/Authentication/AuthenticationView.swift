@@ -39,7 +39,7 @@ struct AuthenticationView: View {
                     Label("Continuar com E-mail", systemImage: "envelope.fill")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.glassProminent)
                 .controlSize(.large)
             }
 
@@ -55,5 +55,3 @@ struct AuthenticationView: View {
             .environment(Coordinator())
     }
 }
-
-

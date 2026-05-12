@@ -121,7 +121,9 @@ struct LobbyView: View {
         guard let participant = liveSession.participants.first(where: { $0.id == participantId }),
               participant.ownerUid == currentUserId else { return }
         let newColor = (participant.teamColorIndex + 1) % Team.availableColors
-        Task { await repo.updateParticipantTeamColor(participantId: participantId, teamColorIndex: newColor) }
+        
+        Task { await repo.updateParticipantTeamColor(participantId: participantId, teamColorIndex: newColor)}
+      
     }
 
     private func startGame() async {

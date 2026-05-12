@@ -20,6 +20,8 @@ struct ActiveGameView: View {
     /// Trigger for remote-change haptic feedback.
     @State private var remoteChangeTrigger = 0
 
+    @Namespace private var scoreNamespace
+
     private var myTeam: Team? {
         teams.first { $0.containsOwner(uid: currentUserId) }
     }
@@ -36,15 +38,12 @@ struct ActiveGameView: View {
             // MARK: - Own team controls
             ownTeamControls
                 .padding()
-                .background(.ultraThinMaterial)
         }
-        .background(Color(.systemGroupedBackground))
         .sensoryFeedback(.impact(flexibility: .solid, intensity: 0.6), trigger: remoteChangeTrigger)
         .onChange(of: teams) { oldTeams, newTeams in
             detectRemoteChanges(old: oldTeams, new: newTeams)
         }
         .onAppear {
-            // Initialize score snapshot
             for team in teams {
                 previousScores[team.colorIndex] = team.totalScore
             }
@@ -54,9 +53,11 @@ struct ActiveGameView: View {
     // MARK: - Scoreboard
 
     private var scoreboard: some View {
-        VStack(spacing: 12) {
-            ForEach(teams) { team in
-                scoreRow(for: team)
+        GlassEffectContainer(spacing: 12) {
+            VStack(spacing: 12) {
+                ForEach(teams) { team in
+                    scoreRow(for: team)
+                }
             }
         }
     }
@@ -90,16 +91,11 @@ struct ActiveGameView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background {
-            ZStack {
-                Color(.secondarySystemGroupedBackground)
-                if isFlashing {
-                    team.color.opacity(0.2)
-                }
-            }
-            .animation(.easeOut(duration: 0.15), value: isFlashing)
-            .clipShape(.rect(cornerRadius: 12))
-        }
+        .glassEffect(
+            .regular.tint(team.color.opacity(0.15)).interactive(isMine),
+            in: .rect(cornerRadius: 12)
+        )
+        .glassEffectID(team.colorIndex, in: scoreNamespace)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
                 .stroke(isMine ? team.color.opacity(0.4) : .clear, lineWidth: 2)
@@ -133,7 +129,7 @@ struct ActiveGameView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 14)
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.glassProminent)
                         .tint(.green)
                     }
                 }
@@ -149,7 +145,7 @@ struct ActiveGameView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 14)
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.glass)
                         .tint(.red)
                     }
                 }
@@ -177,11 +173,9 @@ struct ActiveGameView: View {
 
         guard !changed.isEmpty else { return }
 
-        // Trigger flash + haptic
         flashingTeams = changed
         remoteChangeTrigger += 1
 
-        // Remove flash after short delay
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(300))
             flashingTeams = []

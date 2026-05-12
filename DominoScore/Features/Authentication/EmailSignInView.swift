@@ -59,7 +59,7 @@ struct EmailSignInView: View {
                         .frame(maxWidth: .infinity)
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.glassProminent)
             .controlSize(.large)
             .disabled(!isFormValid || isLoading)
 
