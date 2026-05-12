@@ -219,11 +219,11 @@ struct LobbyView: View {
     NavigationStack {
         LobbyView(session: Session(
             code: "AB3K7",
-            hostUid: "mock",
+            hostUid: "",
             status: .active,
             participants: [
-                Participant(name: "João", totalScore: 120, teamColorIndex: 0, ownerUid: "mock"),
-                Participant(name: "Maria", totalScore: 85, teamColorIndex: 0, ownerUid: "mock"),
+                Participant(name: "João", totalScore: 120, teamColorIndex: 0, ownerUid: ""),
+                Participant(name: "Maria", totalScore: 85, teamColorIndex: 0, ownerUid: ""),
                 Participant(name: "Pedro", totalScore: 200, teamColorIndex: 1, ownerUid: "other"),
                 Participant(name: "Ana", totalScore: 50, teamColorIndex: 1, ownerUid: "other")
             ]
@@ -236,11 +236,11 @@ struct LobbyView: View {
     NavigationStack {
         LobbyView(session: Session(
             code: "AB3K7",
-            hostUid: "mock",
+            hostUid: "",
             status: .waiting,
             participants: [
-                Participant(name: "João", totalScore: 120, teamColorIndex: 0, ownerUid: "mock"),
-                Participant(name: "Maria", totalScore: 85, teamColorIndex: 0, ownerUid: "mock"),
+                Participant(name: "João", totalScore: 120, teamColorIndex: 0, ownerUid: ""),
+                Participant(name: "Maria", totalScore: 85, teamColorIndex: 0, ownerUid: ""),
                 Participant(name: "Pedro", totalScore: 200, teamColorIndex: 1, ownerUid: "other"),
                 Participant(name: "Ana", totalScore: 50, teamColorIndex: 1, ownerUid: "other")
             ]

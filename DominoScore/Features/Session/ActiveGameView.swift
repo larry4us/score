@@ -148,7 +148,8 @@ struct ActiveGameView: View {
                                     .padding(.vertical, 14)
                             }
                         }
-                        .buttonStyle(.glassProminent)
+                        .buttonStyle(.glass)
+                        //.glassEffect(.clear.interactive())
                         .tint(isSubtracting ? .red : .green)
                     }
                 }
