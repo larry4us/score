@@ -16,26 +16,31 @@ struct WaitingView: View {
     let onAddPlayer: () -> Void
     let onStart: () -> Void
     let onToggleTeamColor: (String) -> Void
-
+    
     @Namespace private var glassNamespace
-
+    @State private var showQRCode = false
+    
     /// Participants sorted by team so same-team members are always adjacent.
     private var sortedParticipants: [Participant] {
         participants.sorted { $0.teamColorIndex < $1.teamColorIndex }
     }
-
+    
     /// Splits sorted participants into rows of 2 for a clean grid.
     private var rows: [[Participant]] {
         stride(from: 0, to: sortedParticipants.count, by: 2).map { index in
             Array(sortedParticipants[index..<min(index + 2, sortedParticipants.count)])
         }
     }
-
+    
     var body: some View {
         VStack(spacing: 20) {
             sessionCodeHeader
             participantGrid
             actionButtons
+        }
+        .sheet(isPresented: $showQRCode) {
+            QRCodeSheet(code: session.code)
+                .presentationDetents([.fraction(0.6)])
         }
     }
 }
@@ -44,18 +49,73 @@ struct WaitingView: View {
 
 private struct SessionCodeHeader: View {
     let code: String
-
+    let onShowQR: () -> Void
+    
     var body: some View {
         VStack(spacing: 4) {
             Text("Código da Sala")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Text(code)
-                .font(.largeTitle.monospaced().bold())
-                .padding(8)
-                .glassEffect(in: .rect(cornerRadius: 12))
+            HStack(spacing: 12) {
+                Text(code)
+                    .font(.largeTitle.monospaced().bold())
+                Button(action: onShowQR) {
+                    Image(systemName: "qrcode")
+                        .font(.title2)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Mostrar QR Code")
+            }
+            .padding(8)
+            .glassEffect(in: .rect(cornerRadius: 12))
         }
         .padding(.top, 8)
+    }
+}
+
+// MARK: - QR Code Sheet
+
+private struct QRCodeSheet: View {
+    let code: String
+    @Environment(\.dismiss) private var dismiss
+    
+    private let qrService = QRCodeService()
+    
+    var body: some View {
+        
+        VStack(spacing: 24) {
+            Spacer()
+            
+            Text("Compartilhar Sala")
+                .font(.title2.bold())
+            
+            Text("Peça para escanearem este código para entrar na sala")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            
+            if let uiImage = qrService.generateQRCode(from: code) {
+                Image(uiImage: uiImage)
+                    .interpolation(.none)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 200, height: 200)
+                    .padding(16)
+                    .glassEffect(in: .rect(cornerRadius: 20))
+            }
+            
+            Text(code)
+                .font(.title3.monospaced().bold())
+                .foregroundStyle(.secondary)
+            
+            Spacer()
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Fechar") { dismiss() }
+            }
+        }
     }
 }
 
@@ -67,7 +127,7 @@ private struct ParticipantCard: View {
     let isMine: Bool
     let sessionHostUid: String
     let onToggle: () -> Void
-
+    
     var body: some View {
         Button(action: handleTap) {
             VStack(spacing: 6) {
@@ -94,7 +154,7 @@ private struct ParticipantCard: View {
         .accessibilityLabel("\(participant.name), \(Team.name(for: participant.teamColorIndex))")
         .accessibilityHint(isMine ? "Toque para mudar de time" : "")
     }
-
+    
     private func handleTap() {
         guard isMine else { return }
         onToggle()
@@ -105,9 +165,9 @@ private struct ParticipantCard: View {
 
 private extension WaitingView {
     var sessionCodeHeader: some View {
-        SessionCodeHeader(code: session.code)
+        SessionCodeHeader(code: session.code, onShowQR: { showQRCode = true })
     }
-
+    
     @ViewBuilder
     var participantGrid: some View {
         if participants.isEmpty {
@@ -120,7 +180,7 @@ private extension WaitingView {
             Text("Toque no seu card para mudar de time")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-
+            
             GlassEffectContainer(spacing: 12) {
                 VStack(spacing: 12) {
                     ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
@@ -128,13 +188,13 @@ private extension WaitingView {
                             ForEach(row) { participant in
                                 let isMine = participant.ownerUid == currentUserId
                                 let teamColor = Team.color(for: participant.teamColorIndex)
-
+                                
                                 ParticipantCard(
                                     participant: participant,
                                     isHost: isHost,
                                     isMine: isMine,
                                     sessionHostUid: session.hostUid,
-                                    onToggle: { 
+                                    onToggle: {
                                         withAnimation {
                                             onToggleTeamColor(participant.id)
                                         }
@@ -155,11 +215,11 @@ private extension WaitingView {
                 }
                 .padding(.horizontal)
             }
-
+            
             Spacer()
         }
     }
-
+    
     var actionButtons: some View {
         VStack(spacing: 12) {
             Button("Adicionar Jogador", systemImage: "person.badge.plus", action: onAddPlayer)
@@ -167,7 +227,7 @@ private extension WaitingView {
                 .buttonStyle(.glass)
                 .controlSize(.large)
                 .disabled(participants.count >= 4)
-
+            
             if isHost {
                 Button("Iniciar Partida", action: onStart)
                     .buttonStyle(.glassProminent)
