@@ -16,6 +16,8 @@ struct LobbyView: View {
     @State private var newPlayerName = ""
     @State private var hasJoined = false
     @State private var showLeaveConfirmation = false
+    @State private var showScoreConfig = false
+    @AppStorage("scoreButtons") private var scoreButtonsJSON = ScoreButton.defaultButtons.jsonString
 
     private var repo: SessionRepository { coordinator.sessionRepository }
     private var liveSession: Session { repo.currentSession ?? session }
@@ -26,7 +28,16 @@ struct LobbyView: View {
     }
     private var isHost: Bool { liveSession.hostUid == currentUserId }
 
-    private let scoreDeltas = [5, 10, 25, 50]
+    private var scoreButtons: [ScoreButton] {
+        [ScoreButton](jsonString: scoreButtonsJSON)
+    }
+
+    private var scoreButtonsBinding: Binding<[ScoreButton]> {
+        Binding(
+            get: { scoreButtons },
+            set: { scoreButtonsJSON = $0.jsonString }
+        )
+    }
 
     /// Groups live participants into teams (used for active/finished phases).
     private var teams: [Team] {
@@ -45,12 +56,13 @@ struct LobbyView: View {
                     currentUserId: currentUserId,
                     isHost: isHost,
                     onAddPlayer: { showAddPlayer = true },
-                    onToggleTeamColor: { handleToggleTeamColor(for: $0) }
+                    onToggleTeamColor: { handleToggleTeamColor(for: $0) },
+                    onConfigureButtons: { showScoreConfig = true }
                 )
             case .active:
                 ActiveGameView(
                     teams: teams,
-                    scoreDeltas: scoreDeltas,
+                    scoreButtons: scoreButtons,
                     currentUserId: currentUserId,
                     onScoreChange: { colorIndex, delta in handleTeamScoreChange(teamColorIndex: colorIndex, delta: delta) }
                 )
@@ -58,7 +70,7 @@ struct LobbyView: View {
                 FinishedGameView(teams: teams)
             }
         }
-        .navigationTitle(liveSession.displayName)
+        .navigationTitle(activeNavigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -91,6 +103,9 @@ struct LobbyView: View {
             Button("Cancelar", role: .cancel) {}
         } message: {
             Text(leaveAlertMessage)
+        }
+        .sheet(isPresented: $showScoreConfig) {
+            ScoreButtonsConfigSheet(buttons: scoreButtonsBinding)
         }
         .onAppear {
             guard !hasJoined else { return }
@@ -165,6 +180,23 @@ struct LobbyView: View {
     }
 
     // MARK: - Helpers
+
+    private var myTeam: Team? {
+        teams.first { $0.containsOwner(uid: currentUserId) }
+    }
+
+    private var activeNavigationTitle: String {
+        switch liveSession.status {
+        case .active:
+            if let myTeam {
+                "Time \(Team.name(for: myTeam.colorIndex))"
+            } else {
+                liveSession.displayName
+            }
+        case .waiting, .finished:
+            liveSession.displayName
+        }
+    }
 
     private var statusColor: Color {
         switch liveSession.status {

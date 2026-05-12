@@ -9,7 +9,7 @@ import SwiftUI
 /// own-team score buttons on the bottom. Remote changes trigger a flash + haptic.
 struct ActiveGameView: View {
     let teams: [Team]
-    let scoreDeltas: [Int]
+    let scoreButtons: [ScoreButton]
     let currentUserId: String
     let onScoreChange: (Int, Int) -> Void
 
@@ -61,6 +61,7 @@ struct ActiveGameView: View {
                     scoreRow(for: team)
                 }
             }
+            
         }
     }
 
@@ -94,7 +95,7 @@ struct ActiveGameView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .glassEffect(
-            .regular.tint(team.color.opacity(0.15)).interactive(isMine),
+            .clear.tint(team.color.opacity(0.15)).interactive(isMine),
             in: .rect(cornerRadius: 12)
         )
         .glassEffectID(team.colorIndex, in: scoreNamespace)
@@ -111,43 +112,41 @@ struct ActiveGameView: View {
     private var ownTeamControls: some View {
         VStack(spacing: 12) {
             if let myTeam {
-                HStack {
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(myTeam.color)
-                            .frame(width: 10, height: 10)
-                        Text("Seu time: \(Team.name(for: myTeam.colorIndex))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
+                HStack(spacing: 6) {
                     Spacer()
-
-                    HStack(spacing: 6) {
-                        Image(systemName: "plus")
-                            .font(.caption2.weight(.black))
-                            .foregroundStyle(isSubtracting ? Color.secondary : Color.green)
-                        Toggle("", isOn: $isSubtracting)
-                            .toggleStyle(.switch)
-                            .labelsHidden()
-                            .tint(.red)
-                        Image(systemName: "minus")
-                            .font(.caption2.weight(.black))
-                            .foregroundStyle(isSubtracting ? Color.red : Color.secondary)
-                    }
-                    .sensoryFeedback(.selection, trigger: isSubtracting)
+                    Image(systemName: "plus")
+                        .font(.caption2.weight(.black))
+                        .foregroundStyle(isSubtracting ? Color.secondary : Color.green)
+                    Toggle("", isOn: $isSubtracting)
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                        .tint(.red)
+                    Image(systemName: "minus")
+                        .font(.caption2.weight(.black))
+                        .foregroundStyle(isSubtracting ? Color.red : Color.secondary)
+                    //Spacer()
                 }
+                .sensoryFeedback(.selection, trigger: isSubtracting)
 
                 HStack(spacing: 10) {
-                    ForEach(scoreDeltas, id: \.self) { delta in
+                    ForEach(scoreButtons) { btn in
                         let sign = isSubtracting ? -1 : 1
                         Button {
-                            onScoreChange(myTeam.colorIndex, delta * sign)
+                            onScoreChange(myTeam.colorIndex, btn.value * sign)
                         } label: {
-                            Text("\(isSubtracting ? "-" : "+")\(delta)")
-                                .font(.title3.weight(.bold).monospacedDigit())
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
+                            if btn.isGalo {
+                                //Text(isSubtracting ? "-🐓" : "+🐓")
+                                Text("🐓")
+                                    .font(.title3.weight(.bold))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                            } else {
+                                //Text("\(isSubtracting ? "-" : "+")\(btn.value)")
+                                Text("\(btn.value)")
+                                    .font(.title3.weight(.bold).monospacedDigit())
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                            }
                         }
                         .buttonStyle(.glassProminent)
                         .tint(isSubtracting ? .red : .green)
@@ -200,7 +199,7 @@ struct ActiveGameView: View {
     ]
     ActiveGameView(
         teams: teams,
-        scoreDeltas: [5, 10, 25, 50],
+        scoreButtons: ScoreButton.defaultButtons,
         currentUserId: "me",
         onScoreChange: { _, _ in }
     )

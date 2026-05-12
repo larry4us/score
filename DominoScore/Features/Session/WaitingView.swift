@@ -15,6 +15,7 @@ struct WaitingView: View {
     let isHost: Bool
     let onAddPlayer: () -> Void
     let onToggleTeamColor: (String) -> Void
+    let onConfigureButtons: () -> Void
     
     @Namespace private var glassNamespace
     @State private var showQRCode = false
@@ -177,11 +178,23 @@ private extension WaitingView {
     
     var actionButtons: some View {
         VStack(spacing: 12) {
-            Button("Adicionar Jogador", systemImage: "person.badge.plus", action: onAddPlayer)
-                .frame(maxWidth: .infinity)
-                .buttonStyle(.glass)
-                .controlSize(.large)
-                .disabled(participants.count >= 4)
+            HStack(spacing: 12) {
+                Button("Adicionar Jogador", systemImage: "person.badge.plus", action: onAddPlayer)
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.glass)
+                    .controlSize(.large)
+                    .disabled(participants.count >= 4)
+
+                if isHost {
+                    Button(action: onConfigureButtons) {
+                        Image(systemName: "gearshape")
+                            .font(.body)
+                    }
+                    .buttonStyle(.glass)
+                    .controlSize(.large)
+                    .accessibilityLabel("Configurar botões de pontuação")
+                }
+            }
             
             if !isHost {
                 Text("Aguardando o host iniciar...")
@@ -203,7 +216,8 @@ private extension WaitingView {
         currentUserId: "mock-uid",
         isHost: true,
         onAddPlayer: {},
-        onToggleTeamColor: { _ in }
+        onToggleTeamColor: { _ in },
+        onConfigureButtons: {}
     )
 }
 
@@ -214,7 +228,8 @@ private extension WaitingView {
         currentUserId: "joiner-1",
         isHost: false,
         onAddPlayer: {},
-        onToggleTeamColor: { _ in }
+        onToggleTeamColor: { _ in },
+        onConfigureButtons: {}
     )
 }
 
@@ -225,7 +240,8 @@ private extension WaitingView {
         currentUserId: "mock-uid",
         isHost: true,
         onAddPlayer: {},
-        onToggleTeamColor: { _ in }
+        onToggleTeamColor: { _ in },
+        onConfigureButtons: {}
     )
 }
 
@@ -242,7 +258,8 @@ private extension WaitingView {
         currentUserId: "mock-uid",
         isHost: true,
         onAddPlayer: {},
-        onToggleTeamColor: { _ in }
+        onToggleTeamColor: { _ in },
+        onConfigureButtons: {}
     )
 }
 
@@ -259,7 +276,8 @@ private extension WaitingView {
         currentUserId: "mock-uid",
         isHost: true,
         onAddPlayer: {},
-        onToggleTeamColor: { _ in }
+        onToggleTeamColor: { _ in },
+        onConfigureButtons: {}
     )
 }
 
