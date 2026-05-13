@@ -15,21 +15,16 @@ struct WaitingView: View {
     let isHost: Bool
     let onAddPlayer: () -> Void
     let onToggleTeamColor: (String) -> Void
-    let onConfigureButtons: () -> Void
+    let onStart: () -> Void
     
     @Namespace private var glassNamespace
     @State private var showQRCode = false
     
-    /// Participants sorted by team so same-team members are always adjacent.
-    private var sortedParticipants: [Participant] {
-        participants.sorted { $0.teamColorIndex < $1.teamColorIndex }
-    }
-    
-    /// Splits sorted participants into rows of 2 for a clean grid.
-    private var rows: [[Participant]] {
-        stride(from: 0, to: sortedParticipants.count, by: 2).map { index in
-            Array(sortedParticipants[index..<min(index + 2, sortedParticipants.count)])
-        }
+    /// Teams sorted by color index, each containing up to 2 participants.
+    private var teamGroups: [(colorIndex: Int, members: [Participant])] {
+        let grouped = Dictionary(grouping: participants, by: \.teamColorIndex)
+        return grouped.map { (colorIndex: $0.key, members: $0.value) }
+            .sorted { $0.colorIndex < $1.colorIndex }
     }
     
     var body: some View {
@@ -40,7 +35,7 @@ struct WaitingView: View {
         }
         .sheet(isPresented: $showQRCode) {
             QRCodeSheet(code: session.code)
-                .presentationDetents([.fraction(0.6)])
+                .presentationDetents([.fraction(0.7)])
         }
     }
 }
@@ -101,7 +96,7 @@ private struct ParticipantCard: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.vertical, 16)
         }
         .buttonStyle(.plain)
@@ -138,10 +133,10 @@ private extension WaitingView {
                 .foregroundStyle(.secondary)
             
             GlassEffectContainer(spacing: 12) {
-                VStack(spacing: 12) {
-                    ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                VStack(alignment: .center, spacing: 12) {
+                    ForEach(teamGroups, id: \.colorIndex) { group in
                         HStack(spacing: 12) {
-                            ForEach(row) { participant in
+                            ForEach(group.members) { participant in
                                 let isMine = participant.ownerUid == currentUserId
                                 let teamColor = Team.color(for: participant.teamColorIndex)
                                 
@@ -186,13 +181,15 @@ private extension WaitingView {
                     .disabled(participants.count >= 4)
 
                 if isHost {
-                    Button(action: onConfigureButtons) {
-                        Image(systemName: "gearshape")
+                    Button(action: onStart) {
+                        Image(systemName: "play.fill")
                             .font(.body)
                     }
                     .buttonStyle(.glass)
                     .controlSize(.large)
-                    .accessibilityLabel("Configurar botões de pontuação")
+                    .tint(.green)
+                    .disabled(participants.isEmpty)
+                    .accessibilityLabel("Iniciar partida")
                 }
             }
             
@@ -210,6 +207,8 @@ private extension WaitingView {
 // MARK: - Previews
 
 #Preview("Host — 4 players, 2 teams") {
+    //@Previewable @State var showQR = true
+    
     WaitingView(
         session: .mock,
         participants: Participant.mockList,
@@ -217,8 +216,15 @@ private extension WaitingView {
         isHost: true,
         onAddPlayer: {},
         onToggleTeamColor: { _ in },
-        onConfigureButtons: {}
+        onStart: {}
     )
+//    .sheet(isPresented: $showQR) {
+//        QRCodeSheet(code: Session.mock.code)
+//            .presentationDetents([.fraction(0.65)])
+//            
+//    }
+//     
+        
 }
 
 #Preview("Joiner — waiting") {
@@ -229,7 +235,7 @@ private extension WaitingView {
         isHost: false,
         onAddPlayer: {},
         onToggleTeamColor: { _ in },
-        onConfigureButtons: {}
+        onStart: {}
     )
 }
 
@@ -241,7 +247,7 @@ private extension WaitingView {
         isHost: true,
         onAddPlayer: {},
         onToggleTeamColor: { _ in },
-        onConfigureButtons: {}
+        onStart: {}
     )
 }
 
@@ -259,7 +265,7 @@ private extension WaitingView {
         isHost: true,
         onAddPlayer: {},
         onToggleTeamColor: { _ in },
-        onConfigureButtons: {}
+        onStart: {}
     )
 }
 
@@ -277,7 +283,7 @@ private extension WaitingView {
         isHost: true,
         onAddPlayer: {},
         onToggleTeamColor: { _ in },
-        onConfigureButtons: {}
+        onStart: {}
     )
 }
 

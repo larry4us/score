@@ -55,6 +55,9 @@ struct Team: Identifiable, Hashable {
         }
     }
 
+    /// Maximum number of participants per team.
+    static let maxPerTeam = 2
+
     /// Number of available team colors.
     static let availableColors = 4
 }

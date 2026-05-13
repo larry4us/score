@@ -57,7 +57,7 @@ struct LobbyView: View {
                     isHost: isHost,
                     onAddPlayer: { showAddPlayer = true },
                     onToggleTeamColor: { handleToggleTeamColor(for: $0) },
-                    onConfigureButtons: { showScoreConfig = true }
+                    onStart: { Task { await startGame() } }
                 )
             case .active:
                 ActiveGameView(
@@ -84,10 +84,12 @@ struct LobbyView: View {
             }
             if isHost && liveSession.status == .waiting {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Iniciar", systemImage: "play.fill") {
-                        Task { await startGame() }
+                    Button {
+                        showScoreConfig = true
+                    } label: {
+                        Image(systemName: "gearshape")
                     }
-                    .disabled(liveSession.participants.isEmpty)
+                    .accessibilityLabel("Configurar botões de pontuação")
                 }
             }
         }
@@ -136,10 +138,25 @@ struct LobbyView: View {
     private func handleToggleTeamColor(for participantId: String) {
         guard let participant = liveSession.participants.first(where: { $0.id == participantId }),
               participant.ownerUid == currentUserId else { return }
-        let newColor = (participant.teamColorIndex + 1) % Team.availableColors
-        
-        Task { await repo.updateParticipantTeamColor(participantId: participantId, teamColorIndex: newColor)}
-      
+
+        // Count members per team, excluding the current participant
+        let others = liveSession.participants.filter { $0.id != participantId }
+        let teamCounts = Dictionary(grouping: others, by: \.teamColorIndex)
+            .mapValues(\.count)
+
+        // Find next color that isn't full
+        let total = Team.availableColors
+        var candidate = (participant.teamColorIndex + 1) % total
+        for _ in 0..<total {
+            let count = teamCounts[candidate] ?? 0
+            if count < Team.maxPerTeam {
+                break
+            }
+            candidate = (candidate + 1) % total
+        }
+
+        guard candidate != participant.teamColorIndex else { return }
+        Task { await repo.updateParticipantTeamColor(participantId: participantId, teamColorIndex: candidate) }
     }
 
     private func startGame() async {
