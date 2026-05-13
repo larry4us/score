@@ -17,6 +17,7 @@ struct LobbyView: View {
     @State private var hasJoined = false
     @State private var showLeaveConfirmation = false
     @State private var showScoreConfig = false
+    @State private var selectedTeamColorIndex: Int?
     @AppStorage("scoreButtons") private var scoreButtonsJSON = ScoreButton.defaultButtons.jsonString
 
     private var repo: SessionRepository { coordinator.sessionRepository }
@@ -27,6 +28,7 @@ struct LobbyView: View {
         return full.components(separatedBy: " ").first ?? full
     }
     private var isHost: Bool { liveSession.hostUid == currentUserId }
+    private var isOffline: Bool { liveSession.mode == .offline }
 
     private var scoreButtons: [ScoreButton] {
         [ScoreButton](jsonString: scoreButtonsJSON)
@@ -57,13 +59,16 @@ struct LobbyView: View {
                     isHost: isHost,
                     onAddPlayer: { showAddPlayer = true },
                     onToggleTeamColor: { handleToggleTeamColor(for: $0) },
-                    onStart: { Task { await startGame() } }
+                    onStart: { Task { await startGame() } },
+                    isOffline: isOffline
                 )
             case .active:
                 ActiveGameView(
                     teams: teams,
                     scoreButtons: scoreButtons,
                     currentUserId: currentUserId,
+                    isOffline: isOffline,
+                    selectedTeamColorIndex: $selectedTeamColorIndex,
                     onScoreChange: { colorIndex, delta in handleTeamScoreChange(teamColorIndex: colorIndex, delta: delta) }
                 )
             case .finished:
@@ -80,6 +85,17 @@ struct LobbyView: View {
                     Image(systemName: "xmark")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
+                }
+            }
+            if isOffline && liveSession.status == .active, let idx = selectedTeamColorIndex {
+                ToolbarItem(placement: .principal) {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(Team.color(for: idx))
+                            .frame(width: 10, height: 10)
+                        Text("Time \(Team.name(for: idx))")
+                            .font(.headline)
+                    }
                 }
             }
             if isHost && liveSession.status == .waiting {
@@ -113,8 +129,8 @@ struct LobbyView: View {
             guard !hasJoined else { return }
             hasJoined = true
 
-            // Joiner: add self as participant if not already present
-            if !isHost {
+            // Joiner: add self as participant if not already present (online only)
+            if !isOffline && !isHost {
                 let alreadyJoined = liveSession.participants.contains { $0.id == currentUserId }
                 if !alreadyJoined {
                     let participant = Participant(id: currentUserId, name: currentFirstName, ownerUid: currentUserId)
@@ -131,13 +147,19 @@ struct LobbyView: View {
         let name = newPlayerName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
         let participant = Participant(name: name, ownerUid: currentUserId)
-        Task { await repo.addParticipant(participant) }
+        if isOffline {
+            repo.addOfflineParticipant(participant)
+        } else {
+            Task { await repo.addParticipant(participant) }
+        }
         newPlayerName = ""
     }
 
     private func handleToggleTeamColor(for participantId: String) {
-        guard let participant = liveSession.participants.first(where: { $0.id == participantId }),
-              participant.ownerUid == currentUserId else { return }
+        guard let participant = liveSession.participants.first(where: { $0.id == participantId }) else { return }
+
+        // In online mode, only allow toggling own cards
+        if !isOffline && participant.ownerUid != currentUserId { return }
 
         // Count members per team, excluding the current participant
         let others = liveSession.participants.filter { $0.id != participantId }
@@ -156,18 +178,30 @@ struct LobbyView: View {
         }
 
         guard candidate != participant.teamColorIndex else { return }
-        Task { await repo.updateParticipantTeamColor(participantId: participantId, teamColorIndex: candidate) }
+        if isOffline {
+            repo.updateOfflineParticipantTeamColor(participantId: participantId, teamColorIndex: candidate)
+        } else {
+            Task { await repo.updateParticipantTeamColor(participantId: participantId, teamColorIndex: candidate) }
+        }
     }
 
     private func startGame() async {
         guard isHost, !liveSession.participants.isEmpty else { return }
-        await repo.startGame(participants: liveSession.participants)
+        if isOffline {
+            repo.startOfflineGame(participants: liveSession.participants)
+        } else {
+            await repo.startGame(participants: liveSession.participants)
+        }
     }
 
     // MARK: - Actions (active game)
 
     private func handleTeamScoreChange(teamColorIndex: Int, delta: Int) {
-        Task { await repo.updateTeamScore(teamColorIndex: teamColorIndex, delta: delta) }
+        if isOffline {
+            repo.updateOfflineTeamScore(teamColorIndex: teamColorIndex, delta: delta)
+        } else {
+            Task { await repo.updateTeamScore(teamColorIndex: teamColorIndex, delta: delta) }
+        }
     }
 
     private func updateStatus(_ status: Session.Status) async {
@@ -178,10 +212,14 @@ struct LobbyView: View {
     // MARK: - Leave
 
     private func leaveSession() async {
-        if isHost && liveSession.status == .active {
-            await updateStatus(.finished)
+        if isOffline {
+            repo.finishOfflineGame()
+        } else {
+            if isHost && liveSession.status == .active {
+                await updateStatus(.finished)
+            }
+            repo.stopListening()
         }
-        repo.stopListening()
         dismiss()
     }
 
@@ -205,12 +243,20 @@ struct LobbyView: View {
     private var activeNavigationTitle: String {
         switch liveSession.status {
         case .active:
-            if let myTeam {
+            if isOffline, let idx = selectedTeamColorIndex {
+                "Time \(Team.name(for: idx))"
+            } else if let myTeam {
                 "Time \(Team.name(for: myTeam.colorIndex))"
             } else {
                 liveSession.displayName
             }
-        case .waiting, .finished:
+        case .waiting:
+            if isOffline {
+                "Jogo Local"
+            } else {
+                liveSession.displayName
+            }
+        case .finished:
             liveSession.displayName
         }
     }

@@ -145,6 +145,50 @@ final class SessionRepository {
         }
     }
 
+    // MARK: - Offline
+
+    /// Cria uma sessão local (sem Firestore) para o modo offline.
+    func createOfflineSession(hostUid: String, initialParticipant: Participant) {
+        let session = Session(
+            id: UUID().uuidString,
+            code: "LOCAL",
+            hostUid: hostUid,
+            status: .waiting,
+            mode: .offline,
+            participants: [initialParticipant]
+        )
+        currentSession = session
+        errorMessage = nil
+    }
+
+    /// Adiciona um participante à sessão offline (em memória).
+    func addOfflineParticipant(_ participant: Participant) {
+        currentSession?.participants.append(participant)
+    }
+
+    /// Atualiza a cor do time de um participante na sessão offline.
+    func updateOfflineParticipantTeamColor(participantId: String, teamColorIndex: Int) {
+        guard let index = currentSession?.participants.firstIndex(where: { $0.id == participantId }) else { return }
+        currentSession?.participants[index].teamColorIndex = teamColorIndex
+    }
+
+    /// Inicia o jogo offline, atualizando participantes e status.
+    func startOfflineGame(participants: [Participant]) {
+        currentSession?.participants = participants
+        currentSession?.status = .active
+    }
+
+    /// Atualiza o score de um time na sessão offline.
+    func updateOfflineTeamScore(teamColorIndex: Int, delta: Int) {
+        guard let index = currentSession?.participants.firstIndex(where: { $0.teamColorIndex == teamColorIndex }) else { return }
+        currentSession?.participants[index].totalScore += delta
+    }
+
+    /// Finaliza o jogo offline, limpando a sessão.
+    func finishOfflineGame() {
+        currentSession = nil
+    }
+
     // MARK: - Cleanup
 
     /// Remove o listener ativo.

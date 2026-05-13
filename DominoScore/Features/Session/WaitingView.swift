@@ -16,6 +16,7 @@ struct WaitingView: View {
     let onAddPlayer: () -> Void
     let onToggleTeamColor: (String) -> Void
     let onStart: () -> Void
+    let isOffline: Bool
     
     @Namespace private var glassNamespace
     @State private var showQRCode = false
@@ -29,7 +30,9 @@ struct WaitingView: View {
     
     var body: some View {
         VStack(spacing: 20) {
-            sessionCodeHeader
+            if !isOffline {
+                sessionCodeHeader
+            }
             participantGrid
             actionButtons
         }
@@ -128,7 +131,7 @@ private extension WaitingView {
                 description: Text("Adicione jogadores para começar")
             )
         } else {
-            Text("Toque no seu card para mudar de time")
+            Text(isOffline ? "Toque em um card para mudar de time" : "Toque no seu card para mudar de time")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             
@@ -137,7 +140,7 @@ private extension WaitingView {
                     ForEach(teamGroups, id: \.colorIndex) { group in
                         HStack(spacing: 12) {
                             ForEach(group.members) { participant in
-                                let isMine = participant.ownerUid == currentUserId
+                                let isMine = isOffline ? true : (participant.ownerUid == currentUserId)
                                 let teamColor = Team.color(for: participant.teamColorIndex)
                                 
                                 ParticipantCard(
@@ -216,15 +219,9 @@ private extension WaitingView {
         isHost: true,
         onAddPlayer: {},
         onToggleTeamColor: { _ in },
-        onStart: {}
+        onStart: {},
+        isOffline: false
     )
-//    .sheet(isPresented: $showQR) {
-//        QRCodeSheet(code: Session.mock.code)
-//            .presentationDetents([.fraction(0.65)])
-//            
-//    }
-//     
-        
 }
 
 #Preview("Joiner — waiting") {
@@ -235,7 +232,21 @@ private extension WaitingView {
         isHost: false,
         onAddPlayer: {},
         onToggleTeamColor: { _ in },
-        onStart: {}
+        onStart: {},
+        isOffline: false
+    )
+}
+
+#Preview("Offline") {
+    WaitingView(
+        session: Session(code: "LOCAL", hostUid: "mock-uid", status: .waiting, mode: .offline, participants: Participant.mockList),
+        participants: Participant.mockList,
+        currentUserId: "mock-uid",
+        isHost: true,
+        onAddPlayer: {},
+        onToggleTeamColor: { _ in },
+        onStart: {},
+        isOffline: true
     )
 }
 
@@ -247,7 +258,8 @@ private extension WaitingView {
         isHost: true,
         onAddPlayer: {},
         onToggleTeamColor: { _ in },
-        onStart: {}
+        onStart: {},
+        isOffline: false
     )
 }
 
@@ -265,7 +277,8 @@ private extension WaitingView {
         isHost: true,
         onAddPlayer: {},
         onToggleTeamColor: { _ in },
-        onStart: {}
+        onStart: {},
+        isOffline: false
     )
 }
 
@@ -283,7 +296,8 @@ private extension WaitingView {
         isHost: true,
         onAddPlayer: {},
         onToggleTeamColor: { _ in },
-        onStart: {}
+        onStart: {},
+        isOffline: false
     )
 }
 

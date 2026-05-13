@@ -15,6 +15,7 @@ struct CreateSessionView: View {
     @State private var showEditName = false
     @State private var editedName = ""
     @State private var showScanner = false
+    @State private var showModeSelection = false
 
     private var repo: SessionRepository { coordinator.sessionRepository }
     private var hostUid: String { coordinator.authService?.currentUserId ?? "" }
@@ -37,7 +38,7 @@ struct CreateSessionView: View {
             // Central action area
             VStack(spacing: 32) {
                 CreateSessionButton(isLoading: isLoading) {
-                    Task { await createSession() }
+                    showModeSelection = true
                 }
 
                 JoinSessionSection(
@@ -86,6 +87,16 @@ struct CreateSessionView: View {
         } message: {
             Text("Digite seu novo nome")
         }
+        .navigationDestination(isPresented: $showModeSelection) {
+            ModeSelectionView(
+                onOnline: {
+                    Task { await createSession() }
+                },
+                onLocal: {
+                    createOfflineSession()
+                }
+            )
+        }
         .onChange(of: repo.currentSession) { _, session in
             guard let session, !hasNavigated else { return }
             hasNavigated = true
@@ -118,6 +129,11 @@ struct CreateSessionView: View {
         let hostParticipant = Participant(id: hostUid, name: hostFirstName, ownerUid: hostUid)
         await repo.createSession(hostUid: hostUid, initialParticipant: hostParticipant)
         isLoading = false
+    }
+
+    private func createOfflineSession() {
+        let hostParticipant = Participant(id: hostUid, name: hostFirstName, ownerUid: hostUid)
+        repo.createOfflineSession(hostUid: hostUid, initialParticipant: hostParticipant)
     }
 
     private func findSession() async {
@@ -229,11 +245,62 @@ private struct ProfileMenu: View {
     }
 }
 
+// MARK: - Mode Selection View
+
+private struct ModeSelectionView: View {
+    let onOnline: () -> Void
+    let onLocal: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Você tem amigos\npara se conectar?")
+                    .font(.largeTitle.bold())
+                Text("Escolha como seus amigos vão participar da partida")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 32)
+
+            Spacer()
+
+            VStack(spacing: 12) {
+                Button(action: onOnline) {
+                    Label("Online", systemImage: "wifi")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                }
+                .buttonStyle(.glassProminent)
+                .controlSize(.large)
+
+                Button(action: onLocal) {
+                    Label("Local", systemImage: "iphone")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                }
+                .buttonStyle(.glass)
+                .controlSize(.large)
+            }
+            .padding(.bottom, 32)
+        }
+        .padding(.horizontal)
+        .navigationTitle("Nova Partida")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
 // MARK: - Preview
 
 #Preview {
     NavigationStack {
         CreateSessionView()
             .environment(Coordinator(authenticated: true))
+    }
+}
+
+#Preview("Mode Selection") {
+    NavigationStack {
+        ModeSelectionView(onOnline: {}, onLocal: {})
     }
 }

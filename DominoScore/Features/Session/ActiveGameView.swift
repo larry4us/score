@@ -11,6 +11,8 @@ struct ActiveGameView: View {
     let teams: [Team]
     let scoreButtons: [ScoreButton]
     let currentUserId: String
+    let isOffline: Bool
+    @Binding var selectedTeamColorIndex: Int?
     let onScoreChange: (Int, Int) -> Void
 
     /// Tracks the score snapshot to detect remote changes.
@@ -26,6 +28,14 @@ struct ActiveGameView: View {
 
     private var myTeam: Team? {
         teams.first { $0.containsOwner(uid: currentUserId) }
+    }
+
+    /// The team whose score the buttons affect.
+    private var activeTeam: Team? {
+        if isOffline, let idx = selectedTeamColorIndex {
+            return teams.first { $0.colorIndex == idx }
+        }
+        return myTeam
     }
 
     var body: some View {
@@ -49,6 +59,9 @@ struct ActiveGameView: View {
             for team in teams {
                 previousScores[team.colorIndex] = team.totalScore
             }
+            if isOffline && selectedTeamColorIndex == nil {
+                selectedTeamColorIndex = teams.first?.colorIndex
+            }
         }
     }
 
@@ -67,35 +80,43 @@ struct ActiveGameView: View {
 
     private func scoreRow(for team: Team) -> some View {
         let isFlashing = flashingTeams.contains(team.colorIndex)
-        let isMine = team.containsOwner(uid: currentUserId)
+        let isMine = isOffline ? (selectedTeamColorIndex == team.colorIndex) : team.containsOwner(uid: currentUserId)
+        let tintOpacity: Double = isMine ? 0.35 : 0.15
 
-        return HStack(spacing: 12) {
-            // Team color indicator
-            RoundedRectangle(cornerRadius: 4)
-                .fill(team.color)
-                .frame(width: 6)
+        return Button {
+            guard isOffline else { return }
+            selectedTeamColorIndex = team.colorIndex
+        } label: {
+            HStack(spacing: 12) {
+                // Team color indicator
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(team.color)
+                    .frame(width: 6)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(Team.name(for: team.colorIndex))
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-                Text(team.memberNames)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(Team.name(for: team.colorIndex))
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                    Text(team.memberNames)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                Text("\(team.totalScore)")
+                    .font(.system(.title, design: .rounded, weight: .bold))
+                    .monospacedDigit()
+                    .foregroundStyle(isMine ? team.color : .primary)
             }
-
-            Spacer()
-
-            Text("\(team.totalScore)")
-                .font(.system(.title, design: .rounded, weight: .bold))
-                .monospacedDigit()
-                .foregroundStyle(isMine ? team.color : .primary)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .buttonStyle(.plain)
+        .contentShape(.rect)
         .glassEffect(
-            .clear.tint(team.color.opacity(0.15)).interactive(isMine),
+            .clear.tint(team.color.opacity(tintOpacity)).interactive(isMine),
             in: .rect(cornerRadius: 12)
         )
         .glassEffectID(team.colorIndex, in: scoreNamespace)
@@ -103,15 +124,17 @@ struct ActiveGameView: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(isMine ? team.color.opacity(0.4) : .clear, lineWidth: 2)
         )
+        .opacity(isOffline && !isMine ? 0.6 : 1.0)
         .scaleEffect(isFlashing ? 1.02 : 1.0)
         .animation(.easeOut(duration: 0.15), value: isFlashing)
+        .sensoryFeedback(.selection, trigger: selectedTeamColorIndex)
     }
 
     // MARK: - Own Team Controls
 
     private var ownTeamControls: some View {
         VStack(spacing: 12) {
-            if let myTeam {
+            if let activeTeam {
                 HStack(spacing: 6) {
                     Spacer()
                     Image(systemName: "plus")
@@ -124,7 +147,6 @@ struct ActiveGameView: View {
                     Image(systemName: "minus")
                         .font(.caption2.weight(.black))
                         .foregroundStyle(isSubtracting ? Color.red : Color.secondary)
-                    //Spacer()
                 }
                 .sensoryFeedback(.selection, trigger: isSubtracting)
 
@@ -132,16 +154,14 @@ struct ActiveGameView: View {
                     ForEach(scoreButtons) { btn in
                         let sign = isSubtracting ? -1 : 1
                         Button {
-                            onScoreChange(myTeam.colorIndex, btn.value * sign)
+                            onScoreChange(activeTeam.colorIndex, btn.value * sign)
                         } label: {
                             if btn.isGalo {
-                                //Text(isSubtracting ? "-🐓" : "+🐓")
                                 Text("🐓")
                                     .font(.title3.weight(.bold))
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 14)
                             } else {
-                                //Text("\(isSubtracting ? "-" : "+")\(btn.value)")
                                 Text("\(btn.value)")
                                     .font(.title3.weight(.bold).monospacedDigit())
                                     .frame(maxWidth: .infinity)
@@ -149,7 +169,6 @@ struct ActiveGameView: View {
                             }
                         }
                         .buttonStyle(.glass)
-                        //.glassEffect(.clear.interactive())
                         .tint(isSubtracting ? .red : .green)
                     }
                 }
@@ -187,11 +206,12 @@ struct ActiveGameView: View {
     }
 }
 
-#Preview {
+#Preview("Online") {
+    @Previewable @State var selected: Int? = nil
     let teams = [
         Team(colorIndex: 0, participants: [
-            Participant(name: "João", totalScore: 120, teamColorIndex: 0, ownerUid: "me"),
-            Participant(name: "Maria", totalScore: 85, teamColorIndex: 0, ownerUid: "me")
+            Participant(name: "João", totalScore: 120, teamColorIndex: 0, ownerUid: ""),
+            Participant(name: "Maria", totalScore: 85, teamColorIndex: 0, ownerUid: "")
         ]),
         Team(colorIndex: 1, participants: [
             Participant(name: "Pedro", totalScore: 200, teamColorIndex: 1, ownerUid: "other"),
@@ -201,7 +221,31 @@ struct ActiveGameView: View {
     ActiveGameView(
         teams: teams,
         scoreButtons: ScoreButton.defaultButtons,
-        currentUserId: "me",
+        currentUserId: "",
+        isOffline: false,
+        selectedTeamColorIndex: $selected,
         onScoreChange: { _, _ in }
     )
 }
+#Preview("Offline") {
+    @Previewable @State var selected: Int? = 0
+    let teams = [
+        Team(colorIndex: 0, participants: [
+            Participant(name: "João", totalScore: 120, teamColorIndex: 0, ownerUid: "host"),
+            Participant(name: "Maria", totalScore: 85, teamColorIndex: 0, ownerUid: "host")
+        ]),
+        Team(colorIndex: 1, participants: [
+            Participant(name: "Pedro", totalScore: 200, teamColorIndex: 1, ownerUid: "host"),
+            Participant(name: "Ana", totalScore: 50, teamColorIndex: 1, ownerUid: "host")
+        ])
+    ]
+    ActiveGameView(
+        teams: teams,
+        scoreButtons: ScoreButton.defaultButtons,
+        currentUserId: "host",
+        isOffline: true,
+        selectedTeamColorIndex: $selected,
+        onScoreChange: { _, _ in }
+    )
+}
+
