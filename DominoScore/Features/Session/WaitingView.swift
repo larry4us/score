@@ -177,20 +177,25 @@ private extension WaitingView {
     var actionButtons: some View {
         VStack(spacing: 12) {
             HStack(spacing: 12) {
-                Button("Adicionar Jogador", systemImage: "person.badge.plus", action: onAddPlayer)
-                    .frame(maxWidth: .infinity)
-                    .buttonStyle(.glass)
-                    .controlSize(.large)
-                    .disabled(participants.count >= 4)
+                if isOffline {
+                    Button("Adicionar Jogador", systemImage: "person.badge.plus", action: onAddPlayer)
+                        .frame(maxWidth: .infinity)
+                        .buttonStyle(.glass)
+                        .controlSize(.large)
+                        .disabled(participants.count >= 4)
+                }
 
                 if isHost {
                     Button(action: onStart) {
-                        Image(systemName: "play.fill")
-                            .font(.body)
+                        ZStack {
+                            Image(systemName: "play.fill")
+                                .font(.body)
+                                .foregroundStyle(.black)
+                        }
                     }
-                    .buttonStyle(.glass)
-                    .controlSize(.large)
-                    .tint(.green)
+                    .buttonStyle(.glassProminent)
+                    .controlSize(.extraLarge)
+                    .tint(.offWhite)
                     .disabled(participants.isEmpty)
                     .accessibilityLabel("Iniciar partida")
                 }

@@ -18,7 +18,7 @@ struct AuthenticationView: View {
             // Logo / título
             VStack(spacing: 8) {
                 Image(systemName: "dice.fill")
-                    .font(.system(size: 64))
+                    .font(.system(size: 80))
                     .foregroundStyle(.tint)
 
                 Text("DominoScore")
@@ -42,6 +42,7 @@ struct AuthenticationView: View {
                 .buttonStyle(.glassProminent)
                 .controlSize(.large)
             }
+            
 
             Spacer()
         }

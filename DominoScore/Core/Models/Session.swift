@@ -17,7 +17,7 @@ struct Session: Identifiable, Codable, Hashable {
         switch status {
         case .active: return "Ativo"
         case .finished: return "Finalizado"
-        case .waiting: return "Lobby"
+        case .waiting: return "Lobby online"
         }
     }
     

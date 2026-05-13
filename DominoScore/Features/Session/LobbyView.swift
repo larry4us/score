@@ -252,7 +252,7 @@ struct LobbyView: View {
             }
         case .waiting:
             if isOffline {
-                "Jogo Local"
+                "Lobby Local"
             } else {
                 liveSession.displayName
             }
