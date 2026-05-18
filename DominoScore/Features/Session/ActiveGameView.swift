@@ -112,9 +112,9 @@ struct ActiveGameView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
+            .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .contentShape(.rect)
         .glassEffect(
             .clear.tint(team.color.opacity(tintOpacity)).interactive(isMine),
             in: .rect(cornerRadius: 12)

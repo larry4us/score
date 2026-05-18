@@ -11,24 +11,25 @@ import AuthenticationServices
 /// Handles user authentication via Firebase Auth and syncs profile to Firestore.
 @Observable
 final class AuthService: NSObject {
-    static func == (lhs: AuthService, rhs: AuthService) -> Bool {
-        lhs === rhs
-    }
-    
+
     private let firestoreClient: FirestoreClient
     private(set) var currentUserId: String?
     private(set) var displayName: String?
-    
-    //Apple flow
-    // Unhashed nonce.
-    fileprivate var currentNonce: String?
-    
+
+    /// Continuation used to bridge the Apple Sign-In delegate callbacks into async/await.
+    private var appleSignInContinuation: CheckedContinuation<ASAuthorizationAppleIDCredential, Error>?
+
+    /// Unhashed nonce for the current Apple Sign-In flow.
+    private var currentNonce: String?
+
     init(firestoreClient: FirestoreClient = FirestoreClient()) {
         self.firestoreClient = firestoreClient
     }
-    
+
     var isAuthenticated: Bool { currentUserId != nil }
-    
+
+    // MARK: - Restore Session
+
     /// Restores a previous Firebase Auth session.
     /// Call this **after** `FirebaseApp.configure()` has completed.
     ///
@@ -42,11 +43,10 @@ final class AuthService: NSObject {
             try? Auth.auth().signOut()
             return
         }
-        
+
         if let user = Auth.auth().currentUser {
             currentUserId = user.uid
             displayName = user.displayName
-            // Load latest displayName from Firestore
             Task {
                 if let appUser = try? await firestoreClient.fetchUser(uid: user.uid) {
                     displayName = appUser.displayName
@@ -54,45 +54,86 @@ final class AuthService: NSObject {
             }
         }
     }
-    
-    // MARK: - Email & Password
-    
+
+    // MARK: - Apple Sign-In
+
+    /// Performs the full Sign in with Apple → Firebase Auth flow.
     func signInWithApple() async throws {
-        
-    }
-    
-    @available(iOS 13, *)
-    func startSignInWithAppleFlow() {
         let nonce = randomNonceString()
         currentNonce = nonce
-        let appleIDProvider = ASAuthorizationAppleIDProvider()
-        let request = appleIDProvider.createRequest()
-        request.requestedScopes = [.fullName, .email]
-        request.nonce = sha256(nonce)
-        
-        let authorizationController = ASAuthorizationController(authorizationRequests: [request])
-        authorizationController.delegate = self
-        authorizationController.presentationContextProvider = self
-        authorizationController.performRequests()
+
+        let appleCredential = try await requestAppleCredential(nonce: nonce)
+
+        guard let appleIDToken = appleCredential.identityToken,
+              let idTokenString = String(data: appleIDToken, encoding: .utf8) else {
+            throw AuthError.missingIdentityToken
+        }
+
+        let firebaseCredential = OAuthProvider.appleCredential(
+            withIDToken: idTokenString,
+            rawNonce: nonce,
+            fullName: appleCredential.fullName
+        )
+
+        let result = try await Auth.auth().signIn(with: firebaseCredential)
+        let uid = result.user.uid
+        currentUserId = uid
+
+        // Build display name from Apple's fullName (only provided on first sign-in)
+        let appleName = [appleCredential.fullName?.givenName, appleCredential.fullName?.familyName]
+            .compactMap { $0 }
+            .joined(separator: " ")
+
+        if let appUser = try? await firestoreClient.fetchUser(uid: uid) {
+            displayName = appUser.displayName
+        } else {
+            let name = appleName.isEmpty ? (result.user.displayName ?? "") : appleName
+            displayName = name
+            let appUser = AppUser(id: uid, displayName: name)
+            try? await firestoreClient.upsertUser(appUser, uid: uid)
+
+            if !name.isEmpty {
+                let changeRequest = result.user.createProfileChangeRequest()
+                changeRequest.displayName = name
+                try? await changeRequest.commitChanges()
+            }
+        }
     }
-    
+
+    /// Presents the Apple Sign-In sheet and returns the credential via a continuation.
+    private func requestAppleCredential(nonce: String) async throws -> ASAuthorizationAppleIDCredential {
+        try await withCheckedThrowingContinuation { continuation in
+            appleSignInContinuation = continuation
+
+            let provider = ASAuthorizationAppleIDProvider()
+            let request = provider.createRequest()
+            request.requestedScopes = [.fullName, .email]
+            request.nonce = sha256(nonce)
+
+            let controller = ASAuthorizationController(authorizationRequests: [request])
+            controller.delegate = self
+            controller.presentationContextProvider = self
+            controller.performRequests()
+        }
+    }
+
+    // MARK: - Email & Password
+
     func signIn(email: String, password: String) async throws {
         let result = try await Auth.auth().signIn(withEmail: email, password: password)
         let uid = result.user.uid
         currentUserId = uid
-        
-        // Load displayName from Firestore (source of truth), fallback to Auth
+
         if let appUser = try? await firestoreClient.fetchUser(uid: uid) {
             displayName = appUser.displayName
         } else {
-            // First sign-in after migration — create Firestore user doc
             let name = result.user.displayName ?? ""
             displayName = name
             let appUser = AppUser(id: uid, displayName: name)
             try? await firestoreClient.upsertUser(appUser, uid: uid)
         }
     }
-    
+
     func createAccount(email: String, password: String, name: String) async throws {
         let result = try await Auth.auth().createUser(withEmail: email, password: password)
         let changeRequest = result.user.createProfileChangeRequest()
@@ -100,13 +141,13 @@ final class AuthService: NSObject {
         try await changeRequest.commitChanges()
         currentUserId = result.user.uid
         displayName = name
-        
+
         let appUser = AppUser(id: result.user.uid, displayName: name)
         try await firestoreClient.upsertUser(appUser, uid: result.user.uid)
     }
-    
+
     // MARK: - Profile
-    
+
     func updateDisplayName(_ name: String) async throws {
         guard let user = Auth.auth().currentUser else { return }
         let changeRequest = user.createProfileChangeRequest()
@@ -115,9 +156,9 @@ final class AuthService: NSObject {
         displayName = name
         try await firestoreClient.updateUserDisplayName(name, uid: user.uid)
     }
-    
-    // MARK: - Session
-    
+
+    // MARK: - Sign Out
+
     func signOut() {
         try? Auth.auth().signOut()
         currentUserId = nil
@@ -125,79 +166,63 @@ final class AuthService: NSObject {
     }
 }
 
-extension AuthService{
-    
-    /// Generates a random "nonce" wich is basically a cryptographed data
-    private func randomNonceString(length: Int = 32) -> String {
+// MARK: - Crypto Helpers
+
+private extension AuthService {
+
+    func randomNonceString(length: Int = 32) -> String {
         precondition(length > 0)
         var randomBytes = [UInt8](repeating: 0, count: length)
         let errorCode = SecRandomCopyBytes(kSecRandomDefault, randomBytes.count, &randomBytes)
         if errorCode != errSecSuccess {
-            fatalError(
-                "Unable to generate nonce. SecRandomCopyBytes failed with OSStatus \(errorCode)"
-            )
+            fatalError("Unable to generate nonce. SecRandomCopyBytes failed with OSStatus \(errorCode)")
         }
-        
-        let charset: [Character] =
-        Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
-        
-        let nonce = randomBytes.map { byte in
-            // Pick a random character from the set, wrapping around if needed.
-            charset[Int(byte) % charset.count]
-        }
-        
-        return String(nonce)
+        let charset: [Character] = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
+        return String(randomBytes.map { charset[Int($0) % charset.count] })
     }
-    
-    @available(iOS 13, *)
-    private func sha256(_ input: String) -> String {
-        let inputData = Data(input.utf8)
-        let hashedData = SHA256.hash(data: inputData)
-        let hashString = hashedData.compactMap {
-            String(format: "%02x", $0)
-        }.joined()
-        
-        return hashString
+
+    func sha256(_ input: String) -> String {
+        SHA256.hash(data: Data(input.utf8))
+            .compactMap { String(format: "%02x", $0) }
+            .joined()
     }
 }
 
-@available(iOS 13.0, *)
+// MARK: - ASAuthorizationControllerDelegate
+
 extension AuthService: ASAuthorizationControllerDelegate {
-    
+
     func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
-        if let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential {
-            guard let nonce = currentNonce else {
-                fatalError("Invalid state: A login callback was received, but no login request was sent.")
-            }
-            guard let appleIDToken = appleIDCredential.identityToken else {
-                print("Unable to fetch identity token")
-                return
-            }
-            guard let idTokenString = String(data: appleIDToken, encoding: .utf8) else {
-                print("Unable to serialize token string from data: \(appleIDToken.debugDescription)")
-                return
-            }
-            // Initialize a Firebase credential, including the user's full name.
-            let credential = OAuthProvider.appleCredential(withIDToken: idTokenString,
-                                                           rawNonce: nonce,
-                                                           fullName: appleIDCredential.fullName)
-            // Sign in with Firebase.
-            Auth.auth().signIn(with: credential) { (authResult, error) in
-                if error {
-                    // Error. If error.code == .MissingOrInvalidNonce, make sure
-                    // you're sending the SHA256-hashed nonce as a hex string with
-                    // your request to Apple.
-                    print(error.localizedDescription)
-                    return
-                }
-                // User is signed in to Firebase with Apple.
-                // ...
-            }
-        }
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else { return }
+        appleSignInContinuation?.resume(returning: credential)
+        appleSignInContinuation = nil
     }
-    
+
     func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
-        // Handle error.
-        print("Sign in with Apple errored: \(error)")
+        appleSignInContinuation?.resume(throwing: error)
+        appleSignInContinuation = nil
     }
 }
+// MARK: - ASAuthorizationControllerPresentationContextProviding
+
+extension AuthService: ASAuthorizationControllerPresentationContextProviding {
+
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        let scene = UIApplication.shared.connectedScenes.first as! UIWindowScene
+        return scene.windows.first ?? UIWindow(windowScene: scene)
+    }
+}
+
+// MARK: - AuthError
+
+enum AuthError: LocalizedError {
+    case missingIdentityToken
+
+    var errorDescription: String? {
+        switch self {
+        case .missingIdentityToken:
+            return "Não foi possível obter o token de identidade da Apple."
+        }
+    }
+}
+

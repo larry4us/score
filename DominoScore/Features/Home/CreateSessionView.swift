@@ -16,6 +16,7 @@ struct CreateSessionView: View {
     @State private var editedName = ""
     @State private var showScanner = false
     @State private var showModeSelection = false
+    @State private var shouldShowJoinSession: Bool = false
 
     private var repo: SessionRepository { coordinator.sessionRepository }
     private var hostUid: String { coordinator.authService?.currentUserId ?? "" }
@@ -37,27 +38,18 @@ struct CreateSessionView: View {
 
             // Central action area
             VStack(spacing: 32) {
-                CreateSessionButton(isLoading: isLoading) {
-                    showModeSelection = true
-                }
-
+                
                 JoinSessionSection(
                     sessionCode: $sessionCode,
                     isLoading: isLoading,
+                    repo: repo,
                     onScan: { showScanner = true },
                     onJoin: { Task { await findSession() } }
                 )
-            }
-
-            Spacer()
-
-            // Error message
-            if let error = repo.errorMessage {
-                Text(error)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-                    .multilineTextAlignment(.center)
-                    .padding(.bottom)
+                
+                CreateSessionButton(isLoading: isLoading) {
+                    showModeSelection = true
+                }
             }
         }
         .padding()
@@ -150,7 +142,7 @@ private struct GreetingHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Olá, \(name)!")
+            Text("Bem vindo, \(name)!")
                 .font(.title.bold())
             Text("Crie ou entre em uma partida")
                 .font(.subheadline)
@@ -189,16 +181,17 @@ private struct CreateSessionButton: View {
 private struct JoinSessionSection: View {
     @Binding var sessionCode: String
     let isLoading: Bool
+    let repo: SessionRepository
     let onScan: () -> Void
     let onJoin: () -> Void
-
+    
     private var canJoin: Bool {
         sessionCode.count >= 5 && !isLoading
     }
 
     var body: some View {
         VStack(spacing: 12) {
-            Text("Ou entre com um código")
+            Text("Entre com um código")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
@@ -211,6 +204,16 @@ private struct JoinSessionSection: View {
                 Button("Escanear QR", systemImage: "qrcode.viewfinder", action: onScan)
                     .labelStyle(.iconOnly)
                     .buttonStyle(.glass)
+                    .colorInvert()
+            }
+            
+            // Error message
+            if let error = repo.errorMessage {
+                Text(error)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+                    .padding(.bottom)
             }
 
             Button(action: onJoin) {
@@ -254,9 +257,10 @@ private struct ModeSelectionView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Você tem amigos\npara se conectar?")
+                Text("Quer dividir a responsabilidade de contar os pontos?")
                     .font(.largeTitle.bold())
-                Text("Escolha como seus amigos vão participar da partida")
+                    .multilineTextAlignment(.leading)
+                Text("Decida se deseja gerenciar os pontos desta partida sozinho ou em equipe")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -267,7 +271,7 @@ private struct ModeSelectionView: View {
 
             VStack(spacing: 12) {
                 Button(action: onOnline) {
-                    Label("Online", systemImage: "wifi")
+                    Label("Quero dividir", systemImage: "person.2.fill")
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
                 }
@@ -275,7 +279,7 @@ private struct ModeSelectionView: View {
                 .controlSize(.large)
 
                 Button(action: onLocal) {
-                    Label("Local", systemImage: "iphone")
+                    Label("Prefiro sozinho", systemImage: "person.fill")
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
                 }

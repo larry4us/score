@@ -251,11 +251,7 @@ struct LobbyView: View {
                 liveSession.displayName
             }
         case .waiting:
-            if isOffline {
-                "Lobby Local"
-            } else {
-                liveSession.displayName
-            }
+            "Escolha dos times"
         case .finished:
             liveSession.displayName
         }
